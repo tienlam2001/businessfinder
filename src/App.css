@@ -1,0 +1,162 @@
+/* src/App.css */
+:root {
+  --bg-main: #0f172a;
+  --bg-secondary: #1e293b;
+  --accent-cyan: #06b6d4;
+  --accent-purple: #8b5cf6;
+  --accent-green: #10b981;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --glass-bg: rgba(30, 41, 59, 0.7);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+  --glow-cyan: 0 0 20px rgba(6, 182, 212, 0.3);
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at top right, #1e293b, var(--bg-main));
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+#root { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+
+/* --- Layout Components --- */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3rem;
+  padding-bottom: 1rem;
+  border-bottom: var(--glass-border);
+}
+.app-title {
+  font-size: 2rem;
+  background: linear-gradient(to right, var(--accent-cyan), var(--accent-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+.main-container {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+/* --- Sidebar Futuristic Look --- */
+.sidebar-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: var(--glass-border);
+  border-radius: 16px;
+  padding: 20px;
+  height: calc(100vh - 200px);
+  overflow-y: auto;
+  box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+}
+
+.business-item {
+  padding: 15px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+  background: rgba(15, 23, 42, 0.6);
+}
+.business-item:hover {
+  background: var(--bg-secondary);
+  border-color: var(--accent-cyan);
+  box-shadow: var(--glow-cyan);
+  transform: translateX(5px);
+}
+.business-item.active {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), transparent);
+  border-color: var(--accent-cyan);
+}
+
+/* --- Forms & Inputs --- */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  border: var(--glass-border);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+}
+
+.input-group { margin-bottom: 20px; }
+.input-label {
+  display: block;
+  color: var(--accent-cyan);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.modern-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(15, 23, 42, 0.8);
+  border: var(--glass-border);
+  border-radius: 8px;
+  color: white;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+.modern-input:focus {
+  outline: none;
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}
+
+/* --- Buttons --- */
+.btn-modern {
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  border: none;
+  padding: 12px 24px;
+  color: white;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+.btn-modern:hover {
+  opacity: 0.9;
+  box-shadow: var(--glow-cyan);
+  transform: translateY(-2px);
+}
+
+/* --- The Printable Area (Keep clean for PDF) --- */
+.print-only-visible {
+    display: none; /* Hidden by default on screen */
+}
+
+/* When printing, we HIDE everything else and only show the print view */
+@media print {
+  body * { visibility: hidden; }
+  .print-container, .print-container * {
+    visibility: visible;
+  }
+  .print-container {
+    position: absolute;
+    left: 0; top: 0; width: 100%;
+    background: white; color: black;
+    padding: 40px;
+  }
+  /* Reset text colors for print */
+  .print-container h1, .print-container h2, .print-container h3 { color: black !important; }
+  .print-container p, .print-container span { color: #333 !important; }
+  .financial-grid .stat-box { border: 1px solid #ddd !important; background: #f9f9f9 !important; }
+}
