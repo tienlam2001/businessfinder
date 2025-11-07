@@ -16,9 +16,8 @@ const createInitialState = () => ({
   datePurchased: '',
   purchasePrice: '',
   closingCosts: '',
-  dueDiligence: '',
-  // Rehab
-  rehabBudget: '',
+  // Rehab items replace rehabBudget
+  rehabItems: [{ name: '', cost: '', category: 'Exterior' }],
   rehabContingency: '',
   rehabTimeline: '',
   // Values
@@ -54,6 +53,7 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         ...createInitialState(),
         ...residenceToEdit,
         loans: residenceToEdit.loans?.length ? residenceToEdit.loans : [{ loanAmount: '', interestRate: '', term: '' }],
+        rehabItems: residenceToEdit.rehabItems?.length ? residenceToEdit.rehabItems : [{ name: residenceToEdit.rehabBudget || '', cost: '', category: 'General' }],
       });
       const newImageSlots = Array(8).fill(null);
       if (residenceToEdit.imageUrls) {
@@ -89,6 +89,24 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
     }
   };
 
+  const handleRehabChange = (index, e) => {
+    const newRehabItems = [...formData.rehabItems];
+    newRehabItems[index][e.target.name] = e.target.value;
+    setFormData({ ...formData, rehabItems: newRehabItems });
+  };
+
+  const addRehabItem = () => {
+    setFormData({ ...formData, rehabItems: [...formData.rehabItems, { name: '', cost: '', category: 'Interior' }] });
+  };
+
+  const removeRehabItem = (index) => {
+    if (formData.rehabItems.length > 1) {
+      const newRehabItems = [...formData.rehabItems];
+      newRehabItems.splice(index, 1);
+      setFormData({ ...formData, rehabItems: newRehabItems });
+    }
+  };
+
   const handleImageChange = (index, e) => {
     const file = e.target.files[0];
     if (file) {
@@ -116,8 +134,6 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         ...formData,
         purchasePrice: Number(formData.purchasePrice) || null,
         closingCosts: Number(formData.closingCosts) || null,
-        dueDiligence: Number(formData.dueDiligence) || null,
-        rehabBudget: Number(formData.rehabBudget) || null,
         rehabContingency: Number(formData.rehabContingency) || null,
         rehabTimeline: Number(formData.rehabTimeline) || null,
         askingPrice: Number(formData.askingPrice) || null,
@@ -131,6 +147,10 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         insurance: Number(formData.insurance) || null,
         marketRent: Number(formData.marketRent) || null,
         loans: formData.loans.filter(l => l.loanAmount || l.interestRate || l.term),
+        rehabItems: formData.rehabItems.map(item => ({
+          ...item,
+          cost: Number(item.cost) || 0
+        })).filter(item => item.name && item.cost > 0),
       };
 
       const residenceId = residenceToEdit ? residenceToEdit.id : doc(collection(db, 'residences')).id;
@@ -196,11 +216,24 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
           <div className="input-group"><label className="input-label">Date Purchased</label><input className="modern-input" type="date" name="datePurchased" value={formData.datePurchased} onChange={handleChange} /></div>
           <div className="input-group"><label className="input-label">Purchase Price ($)</label><input className="modern-input" type="number" name="purchasePrice" value={formData.purchasePrice} onChange={handleChange} /></div>
           <div className="input-group"><label className="input-label">Closing Costs ($)</label><input className="modern-input" type="number" name="closingCosts" value={formData.closingCosts} onChange={handleChange} /></div>
-          <div className="input-group"><label className="input-label">Due Diligence ($)</label><input className="modern-input" type="number" name="dueDiligence" value={formData.dueDiligence} onChange={handleChange} /></div>
-          <div className="input-group"><label className="input-label">Rehab Budget ($)</label><input className="modern-input" type="number" name="rehabBudget" value={formData.rehabBudget} onChange={handleChange} /></div>
           <div className="input-group"><label className="input-label">Contingency (%)</label><input className="modern-input" type="number" name="rehabContingency" value={formData.rehabContingency} onChange={handleChange} /></div>
           <div className="input-group"><label className="input-label">Rehab Timeline (months)</label><input className="modern-input" type="number" name="rehabTimeline" value={formData.rehabTimeline} onChange={handleChange} /></div>
         </div>
+
+        <hr style={{ borderColor: 'var(--glass-border)', margin: '30px 0', opacity: 0.3 }} />
+
+        <h3 style={{ color: 'var(--accent-green)' }}>// REHAB COSTS</h3>
+        {formData.rehabItems.map((item, index) => (
+          <div key={index} className="owner-group" style={{ border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '15px', marginBottom: '10px', position: 'relative' }}>
+            {formData.rehabItems.length > 1 && <XCircle color="#f87171" size={20} style={{ position: 'absolute', top: '10px', right: '10px', cursor: 'pointer' }} onClick={() => removeRehabItem(index)} />}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: '20px' }}>
+              <div className="input-group"><label className="input-label">Category</label><select className="modern-input" name="category" value={item.category} onChange={(e) => handleRehabChange(index, e)}><option>Exterior</option><option>Interior</option><option>General</option><option>Permits</option></select></div>
+              <div className="input-group"><label className="input-label">Item Name</label><input className="modern-input" name="name" value={item.name} onChange={(e) => handleRehabChange(index, e)} /></div>
+              <div className="input-group"><label className="input-label">Cost ($)</label><input className="modern-input" type="number" name="cost" value={item.cost} onChange={(e) => handleRehabChange(index, e)} /></div>
+            </div>
+          </div>
+        ))}
+        <button type="button" onClick={addRehabItem} className="btn-modern-subtle" style={{ marginBottom: '20px' }}><PlusCircle size={16} /> Add Rehab Item</button>
 
         <hr style={{ borderColor: 'var(--glass-border)', margin: '30px 0', opacity: 0.3 }} />
 

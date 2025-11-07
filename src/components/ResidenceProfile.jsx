@@ -20,10 +20,9 @@ export default function ResidenceProfile({ data, onDelete, onEdit }) {
   // Calculations based on the new spec
   const purchasePrice = Number(data.purchasePrice) || 0;
   const closingCosts = Number(data.closingCosts) || 0;
-  const dueDiligence = Number(data.dueDiligence) || 0;
-  const totalAcquisitionCost = purchasePrice + closingCosts + dueDiligence;
+  const totalAcquisitionCost = purchasePrice + closingCosts;
 
-  const rehabBudget = Number(data.rehabBudget) || 0;
+  const rehabBudget = (data.rehabItems || []).reduce((acc, item) => acc + (Number(item.cost) || 0), 0);
   const rehabContingency = Number(data.rehabContingency) || 0;
   const totalRehabCost = rehabBudget * (1 + rehabContingency / 100);
 
@@ -132,8 +131,6 @@ export default function ResidenceProfile({ data, onDelete, onEdit }) {
           <DetailItem label="Date Purchased" value={data.datePurchased} />
           <DetailItem label="Purchase Price" value={data.purchasePrice} isCurrency />
           <DetailItem label="Closing Costs" value={data.closingCosts} isCurrency />
-          <DetailItem label="Due Diligence" value={data.dueDiligence} isCurrency />
-          <DetailItem label="Rehab Budget" value={data.rehabBudget} isCurrency />
           <DetailItem label="Rehab Contingency" value={data.rehabContingency} isPercent />
           <DetailItem label="Total Rehab" value={totalRehabCost} isCurrency />
           <DetailItem label="Rehab Timeline" value={data.rehabTimeline ? `${data.rehabTimeline} months` : null} />
