@@ -1,7 +1,7 @@
 // src/components/AddBusinessForm.jsx
 import { useState, useEffect } from 'react';
 import { db, storage } from '../firebase';
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Save, Loader2, PlusCircle, XCircle, ImagePlus } from 'lucide-react';
 
@@ -18,6 +18,7 @@ const initialFinancialsState = {
 const initialFormData = {
   businessName: '',
   llcName: '',
+  businessType: 'Nail Salon',
   status: 'New Built',
   yearEstablished: new Date().getFullYear(),
   owners: [initialOwnerState],
@@ -30,7 +31,12 @@ const initialFormData = {
   laborExpenseType: 'Percent',
   laborExpenseValue: '',
   capex: '',
-  imageUrls: []
+  imageUrls: [],
+  // Nail Salon Valuation Fields
+  locationType: 'Big plaza, anchor tenant',
+  processorFee: 2.5,
+  commission: 60,
+  incomeValuationRate: 85,
 };
 
 export default function AddBusinessForm({ onSaved, businessToEdit }) {
@@ -164,10 +170,26 @@ export default function AddBusinessForm({ onSaved, businessToEdit }) {
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   const handleImageChange = (index, e) => {
-    const file = e.target.files[0];
-    if (file) {
+    const files = e.target.files;
+    if (files.length > 0) {
       const newImageSlots = [...imageSlots];
-      newImageSlots[index] = { url: URL.createObjectURL(file), file: file };
+      let currentSlotIndex = index;
+
+      for (let i = 0; i < files.length; i++) {
+        // Find the next available slot
+        while (currentSlotIndex < newImageSlots.length && newImageSlots[currentSlotIndex] !== null) {
+          currentSlotIndex++;
+        }
+
+        // If we found an available slot within the limit, fill it
+        if (currentSlotIndex < 8) {
+          const file = files[i];
+          newImageSlots[currentSlotIndex] = { url: URL.createObjectURL(file), file: file };
+          currentSlotIndex++; // Move to the next slot for the next file
+        } else {
+          break; // Stop if no more slots are available
+        }
+      }
       setImageSlots(newImageSlots);
     }
   };
@@ -239,7 +261,12 @@ export default function AddBusinessForm({ onSaved, businessToEdit }) {
         financialsMode: formData.financialsMode,
         laborExpenseType: formData.laborExpenseType,
         laborExpenseValue: Number(formData.laborExpenseValue) || null,
-        capex: Number(formData.capex) || null
+        capex: Number(formData.capex) || null,
+        // Nail Salon Valuation Fields
+        locationType: formData.locationType,
+        processorFee: Number(formData.processorFee) || null,
+        commission: Number(formData.commission) || null,
+        incomeValuationRate: Number(formData.incomeValuationRate) || null,
       };
 
       // Handle image uploads and deletions
@@ -276,7 +303,7 @@ export default function AddBusinessForm({ onSaved, businessToEdit }) {
         const { createdAt, id, ...updateData } = dataToSave;
         await updateDoc(businessRef, { ...updateData, updatedAt: serverTimestamp() });
       } else {
-        await addDoc(doc(db, "businesses", businessId), { ...dataToSave, createdAt: new Date() });
+        await setDoc(doc(db, 'businesses', businessId), { ...dataToSave, createdAt: new Date() });
       }
       onSaved();
       setFormData(initialFormData); // Reset form
@@ -292,9 +319,16 @@ export default function AddBusinessForm({ onSaved, businessToEdit }) {
         {businessToEdit ? '// EDIT BUSINESS PROFILE' : '// NEW DATA ENTRY'}
       </h2>
       <form onSubmit={handleSubmit}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
             <div className="input-group"><label className="input-label">Business Name</label><input className="modern-input" name="businessName" value={formData.businessName} required onChange={handleChange} /></div>
             <div className="input-group"><label className="input-label">LLC Official Name</label><input className="modern-input" name="llcName" value={formData.llcName} required onChange={handleChange} /></div>
+            <div className="input-group"><label className="input-label">Business Type</label>
+                <select className="modern-input" name="businessType" value={formData.businessType} onChange={handleChange}>
+                    <option>Nail Salon</option>
+                    <option>Laundromat</option>
+                    <option>Car Wash</option>
+                </select>
+            </div>
             <div className="input-group"><label className="input-label">Status</label>
                 <select className="modern-input" name="status" value={formData.status} onChange={handleChange}>
                     <option>New Built</option><option>Existing / Old</option>
@@ -337,6 +371,31 @@ export default function AddBusinessForm({ onSaved, businessToEdit }) {
 
         <div className="input-group"><label className="input-label">Business Address</label><input className="modern-input" name="businessAddress" value={formData.businessAddress} required onChange={handleChange} placeholder="Physical location..." /></div>
         <div className="input-group"><label className="input-label">Owner Private Address</label><input className="modern-input" name="ownerAddress" value={formData.ownerAddress} onChange={handleChange} placeholder="Primary owner's private residence..." /></div>
+
+        {formData.businessType === 'Nail Salon' && (
+          <>
+            <h3 style={{ color: 'var(--accent-green)' }}>// NAIL SALON VALUATION INPUTS</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '20px' }}>
+                <div className="input-group">
+                    <label className="input-label">Location Type</label>
+                    <select className="modern-input" name="locationType" value={formData.locationType} onChange={handleChange}>
+                        <option>Big plaza, anchor tenant</option>
+                        <option>Small plaza, central</option>
+                        <option>Standalone building, high traffic</option>
+                        <option>Strip mall, no anchor</option>
+                        <option>Lifestyle center/outdoor mall</option>
+                    </select>
+                </div>
+                <div className="input-group"><label className="input-label">Processor Fee (%)</label><input className="modern-input" type="number" name="processorFee" value={formData.processorFee} onChange={handleChange} /></div>
+                <div className="input-group"><label className="input-label">Commission (%)</label><input className="modern-input" type="number" name="commission" value={formData.commission} onChange={handleChange} /></div>
+                <div className="input-group"><label className="input-label">Square Footage</label><input className="modern-input" type="number" name="squareFootage" value={formData.squareFootage} onChange={handleChange} /></div>
+                <div className="input-group"><label className="input-label">Income Valuation Rate (%)</label><input className="modern-input" type="number" name="incomeValuationRate" value={formData.incomeValuationRate} onChange={handleChange} /></div>
+            </div>
+            <hr style={{ borderColor: 'var(--glass-border)', margin: '30px 0', opacity: 0.3 }} />
+          </>
+        )}
+
+        <hr style={{ borderColor: 'var(--glass-border)', margin: '30px 0', opacity: 0.3 }} />
 
         <hr style={{ borderColor: 'var(--glass-border)', margin: '30px 0', opacity: 0.3 }} />
 
@@ -434,7 +493,7 @@ export default function AddBusinessForm({ onSaved, businessToEdit }) {
                 <label className="upload-label">
                   <ImagePlus size={30} />
                   <span>Add Image</span>
-                  <input type="file" accept="image/*" onChange={(e) => handleImageChange(index, e)} />
+                  <input type="file" accept="image/*" multiple onChange={(e) => handleImageChange(index, e)} />
                 </label>
               )}
             </div>

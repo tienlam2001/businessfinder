@@ -36,6 +36,9 @@ export default function PersonProfile({ data, onDelete, onEdit }) {
           <button onClick={() => onDelete(data.id)} className="btn-modern" style={{ background: 'var(--accent-red)' }}>
             <Trash2 size={20} /> DELETE
           </button>
+          <button onClick={handlePrint} className="btn-modern" style={{ background: 'var(--accent-green)' }}>
+            <Printer size={20} /> EXPORT PDF
+          </button>
         </div>
       </div>
 

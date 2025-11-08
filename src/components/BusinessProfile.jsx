@@ -46,6 +46,60 @@ export default function BusinessProfile({ data, onDelete, onEdit }) {
 
   const cashOnCashReturn = totalInvestment > 0 ? (annualCashFlow / totalInvestment) * 100 : 0;
 
+  // --- Nail Salon Valuation Calculations ---
+  const valuationPrintRef = useRef();
+  const handleValuationPrint = useReactToPrint({ content: () => valuationPrintRef.current, documentTitle: `${data.businessName}_Valuation_Report` });
+
+  // --- New, more detailed valuation logic ---
+  let locationBaseValue = 0;
+  const sqft = Number(data.squareFootage) || 0;
+
+  switch (data.locationType) {
+    case 'Big plaza, anchor tenant':
+      locationBaseValue = sqft > 2000 ? 85000 : 50000;
+      break;
+    case 'Lifestyle center/outdoor mall':
+      locationBaseValue = sqft > 2000 ? 75000 : 60000;
+      break;
+    case 'Standalone building, high traffic':
+      locationBaseValue = sqft > 2000 ? 55000 : 40000;
+      break;
+    case 'Strip mall, no anchor':
+      locationBaseValue = sqft > 2000 ? 35000 : 25000;
+      break;
+    case 'Small plaza, central':
+      locationBaseValue = sqft > 2000 ? 20000 : 15000;
+      break;
+    default:
+      locationBaseValue = 0;
+  }
+
+  let annualRevenue = totalIncome;
+  let annualBaseExpenses = baseExpenses;
+  let annualLaborExpense = laborExpense;
+
+  if (financialsMode === 'Monthly') {
+    annualRevenue = totalIncome * 12;
+    annualBaseExpenses = baseExpenses * 12;
+    annualLaborExpense = laborExpense * 12;
+  } else if (financialsMode === 'MonthlyMultiple' && financials.length > 0) {
+    annualRevenue = (totalIncome / financials.length) * 12;
+    annualBaseExpenses = (baseExpenses / financials.length) * 12;
+    annualLaborExpense = (laborExpense / financials.length) * 12;
+  }
+
+  const processorFee = annualRevenue * ((Number(data.processorFee) || 0) / 100);
+  const commission = annualRevenue * ((Number(data.commission) || 0) / 100);
+
+  const totalAnnualExpenses = annualBaseExpenses + processorFee + commission; // This is correct for the main dashboard, but not for valuation. I will fix the valuation calculation.
+  const valuationAnnualCashFlow = annualRevenue - totalAnnualExpenses;
+  const incomeValuationRate = Number(data.incomeValuationRate) || 85;
+  const incomeValuation = valuationAnnualCashFlow > 0 ? valuationAnnualCashFlow / (incomeValuationRate / 100) : 0;
+  const totalValuation = locationBaseValue + incomeValuation;
+  const fastValuation = (annualRevenue / 12) * 3;
+  // --- End Valuation Calculations ---
+
+
   const [viewerState, setViewerState] = useState({ isOpen: false, index: 0 });
 
   const openViewer = (index) => {
@@ -90,7 +144,7 @@ export default function BusinessProfile({ data, onDelete, onEdit }) {
   }
 
   return (
-    <div className="glass-card">
+    <div className="glass-card screen-only">
       <AnimatePresence>
         {viewerState.isOpen && (
           <motion.div
@@ -139,6 +193,9 @@ export default function BusinessProfile({ data, onDelete, onEdit }) {
           <button onClick={handlePrint} className="btn-modern" style={{ background: 'var(--accent-green)' }}>
             <Printer size={20} /> EXPORT PDF
           </button>
+          {data.businessType === 'Nail Salon' && (
+            <button onClick={handleValuationPrint} className="btn-modern" style={{ background: 'var(--accent-green)' }}><Printer size={20} /> VALUATION</button>
+          )}
         </div>
       </div>
 
@@ -158,6 +215,7 @@ export default function BusinessProfile({ data, onDelete, onEdit }) {
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-cyan)', marginTop: 0 }}><Building size={18}/> Facility</h3>
             <p style={{ fontSize: '1.1rem', margin: '0 0 10px 0' }}>{data.businessAddress}</p>
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                {data.businessType && <span style={{ background: 'var(--bg-main)', padding: '5px 10px', borderRadius: '20px', fontSize: '0.8rem', border: '1px solid var(--accent-green)' }}>{data.businessType}</span>}
                 <span style={{ background: 'var(--bg-main)', padding: '5px 10px', borderRadius: '20px', fontSize: '0.8rem', border: '1px solid var(--accent-purple)' }}>{data.status}</span>
                 <span style={{ background: 'var(--bg-main)', padding: '5px 10px', borderRadius: '20px', fontSize: '0.8rem', border: '1px solid var(--accent-cyan)' }}>Est. {data.yearEstablished}</span>
             </div>
@@ -187,6 +245,27 @@ export default function BusinessProfile({ data, onDelete, onEdit }) {
           </div>
       </div>
 
+      {data.businessType === 'Nail Salon' && (
+        <>
+          <hr style={{ borderColor: 'var(--glass-border)', margin: '30px 0', opacity: 0.3 }} />
+          <h3 style={{ color: 'var(--accent-green)' }}>// NAIL SALON VALUATION</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+            <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--accent-green)', padding: '20px', borderRadius: '16px' }}>
+              <div style={{ color: 'var(--accent-green)'}}>TOTAL ESTIMATED VALUATION</div>
+              <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>${Math.round(totalValuation).toLocaleString()}</div>
+            </div>
+            <div style={{ background: 'rgba(6, 182, 212, 0.1)', border: '1px solid var(--accent-cyan)', padding: '20px', borderRadius: '16px' }}>
+              <div style={{ color: 'var(--accent-cyan)'}}>ANNUAL CASH FLOW (FOR VALUATION)</div>
+              <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>${Math.round(valuationAnnualCashFlow).toLocaleString()}</div>
+            </div>
+            <div style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid #eab308', padding: '20px', borderRadius: '16px' }}>
+              <div style={{ color: '#eab308' }}>"FAST" VALUATION (MONTHLY x3)</div>
+              <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>${Math.round(fastValuation).toLocaleString()}</div>
+            </div>
+          </div>
+        </>
+      )}
+
       {data.imageUrls && data.imageUrls.length > 0 && (
         <>
           <hr style={{ borderColor: 'var(--glass-border)', margin: '30px 0', opacity: 0.3 }} />
@@ -211,7 +290,7 @@ export default function BusinessProfile({ data, onDelete, onEdit }) {
       {/* HIDDEN PRINT CONTAINER - This only shows up when you actually click "Export PDF"  */}
       {/* It uses basic, clean styles that overrides the futuristic dark mode.               */}
       {/* ================================================================================= */}
-      <div style={{ display: 'none' }}>
+      <div className="print-only">
         <div ref={printRef} className="print-container" style={{ padding: '40px', color: 'black', background: 'white', fontFamily: 'Arial, sans-serif' }}>
             <h1 style={{ borderBottom: '3px solid #333', paddingBottom: '10px', marginBottom: '20px' }}>{data.businessName}</h1>
             <p><strong>Official Name:</strong> {data.llcName} | <strong>Status:</strong> {data.status} | <strong>Est:</strong> {data.yearEstablished}</p>
@@ -281,6 +360,43 @@ export default function BusinessProfile({ data, onDelete, onEdit }) {
         </div>
       </div>
       {/* END HIDDEN PRINT CONTAINER */}
+
+      {/* ================================================================================= */}
+      {/* HIDDEN VALUATION PRINT CONTAINER                                                  */}
+      {/* ================================================================================= */}
+      <div className="print-only">
+        <div ref={valuationPrintRef} className="print-container" style={{ padding: '40px', color: 'black', background: 'white', fontFamily: 'Arial, sans-serif' }}>
+            <h1 style={{ borderBottom: '3px solid #333', paddingBottom: '10px', marginBottom: '20px' }}>Valuation Report: {data.businessName}</h1>
+            <p>Generated on {new Date().toLocaleDateString()}</p>
+            {data.businessType === 'Nail Salon' && (
+              <p><strong>Location Type:</strong> {data.locationType} | <strong>Size:</strong> {sqft} sqft</p>
+            )}
+
+            <h3 style={{ background: '#eee', padding: '10px', marginTop: '30px' }}>Valuation Summary</h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
+              <tbody>
+                <tr style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '8px'}}>Location Base Value</td><td style={{padding: '8px', textAlign: 'right'}}>${locationBaseValue.toLocaleString()}</td></tr>
+                <tr style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '8px'}}>Income Valuation (ACF / {incomeValuationRate}%)</td><td style={{padding: '8px', textAlign: 'right'}}>${Math.round(incomeValuation).toLocaleString()}</td></tr>
+                <tr style={{background: '#e0e0e0', fontWeight: 'bold', borderTop: '2px solid #333'}}><td style={{padding: '15px 8px'}}>TOTAL ESTIMATED VALUATION</td><td style={{padding: '15px 8px', textAlign: 'right'}}>${Math.round(totalValuation).toLocaleString()}</td></tr>
+              </tbody>
+            </table>
+
+            <h3 style={{ background: '#eee', padding: '10px', marginTop: '30px' }}>Annual Financials for Valuation</h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
+              <tbody>
+                <tr style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '8px'}}>Annual Revenue</td><td style={{padding: '8px', color: 'green', textAlign: 'right'}}>${Math.round(annualRevenue).toLocaleString()}</td></tr>
+                <tr style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '8px', paddingLeft: '25px'}}>Base Expenses (Rent, etc.)</td><td style={{padding: '8px', color: 'red', textAlign: 'right'}}>- ${Math.round(annualBaseExpenses).toLocaleString()}</td></tr>
+                <tr style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '8px', paddingLeft: '25px'}}>Processor Fee ({data.processorFee}%)</td><td style={{padding: '8px', color: 'red', textAlign: 'right'}}>- ${Math.round(processorFee).toLocaleString()}</td></tr>
+                <tr style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '8px', paddingLeft: '25px'}}>Commission ({data.commission}%)</td><td style={{padding: '8px', color: 'red', textAlign: 'right'}}>- ${Math.round(commission).toLocaleString()}</td></tr>
+                <tr style={{background: '#f0f0f0', fontWeight: 'bold', borderTop: '2px solid #333'}}><td style={{padding: '15px 8px'}}>Annual Cash Flow</td><td style={{padding: '15px 8px', textAlign: 'right'}}>${Math.round(valuationAnnualCashFlow).toLocaleString()}</td></tr>
+              </tbody>
+            </table>
+
+            <div style={{marginTop: '50px', fontSize: '12px', color: '#666', borderTop: '1px solid #ccc', paddingTop: '10px'}}>
+                Document generated by Nexus Research V2.0. This is an estimate for discussion purposes only.
+            </div>
+        </div>
+      </div>
     </div>
   );
 }

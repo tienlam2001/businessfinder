@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { db } from './firebase';
 import { collection, onSnapshot, doc, deleteDoc, query, orderBy } from 'firebase/firestore';
-import { Plus, Building2, Activity, User, Briefcase, Home } from 'lucide-react';
+import { Plus, Building2, Activity, User, Briefcase, Home, Calculator } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion'; // Import for animation
 import BusinessProfile from './components/BusinessProfile';
 import AddBusinessForm from './components/AddBusinessForm';
@@ -139,6 +139,9 @@ function App() {
           <button onClick={() => setViewMode('residence')} className={viewMode === 'residence' ? 'active' : ''}>
             <Home size={16} /> Real Estate
           </button>
+          <a href="/calculators.html" target="_blank" className="view-switcher-link">
+            <Calculator size={16} /> Calculators
+          </a>
         </div>
         <div style={{ color: 'var(--text-secondary)' }}>v2.0</div>
       </header>

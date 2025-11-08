@@ -1,7 +1,7 @@
 // src/components/AddPersonForm.jsx
 import { useState, useEffect } from 'react';
 import { db, storage } from '../firebase';
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Save, Loader2, PlusCircle, XCircle, ImagePlus } from 'lucide-react';
 
@@ -76,10 +76,26 @@ export default function AddPersonForm({ onSaved, personToEdit }) {
   };
 
   const handleImageChange = (index, e) => {
-    const file = e.target.files[0];
-    if (file) {
+    const files = e.target.files;
+    if (files.length > 0) {
       const newImageSlots = [...imageSlots];
-      newImageSlots[index] = { url: URL.createObjectURL(file), file: file };
+      let currentSlotIndex = index;
+
+      for (let i = 0; i < files.length; i++) {
+        // Find the next available slot
+        while (currentSlotIndex < newImageSlots.length && newImageSlots[currentSlotIndex] !== null) {
+          currentSlotIndex++;
+        }
+
+        // If we found an available slot within the limit, fill it
+        if (currentSlotIndex < 8) {
+          const file = files[i];
+          newImageSlots[currentSlotIndex] = { url: URL.createObjectURL(file), file: file };
+          currentSlotIndex++; // Move to the next slot for the next file
+        } else {
+          break; // Stop if no more slots are available
+        }
+      }
       setImageSlots(newImageSlots);
     }
   };
@@ -141,7 +157,7 @@ export default function AddPersonForm({ onSaved, personToEdit }) {
         const { createdAt, id, ...updateData } = dataToSave;
         await updateDoc(personRef, { ...updateData, updatedAt: serverTimestamp() });
       } else {
-        await addDoc(doc(db, "persons", personId), { ...dataToSave, createdAt: new Date() });
+        await setDoc(doc(db, "persons", personId), { ...dataToSave, createdAt: new Date() });
       }
       onSaved();
     } catch (error) {
@@ -217,7 +233,7 @@ export default function AddPersonForm({ onSaved, personToEdit }) {
                 <label className="upload-label">
                   <ImagePlus size={30} />
                   <span>Add Image</span>
-                  <input type="file" accept="image/*" onChange={(e) => handleImageChange(index, e)} />
+                  <input type="file" accept="image/*" multiple onChange={(e) => handleImageChange(index, e)} />
                 </label>
               )}
             </div>

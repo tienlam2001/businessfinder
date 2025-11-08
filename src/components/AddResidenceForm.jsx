@@ -1,7 +1,7 @@
 // src/components/AddResidenceForm.jsx
 import { useState, useEffect } from 'react';
 import { db, storage } from '../firebase';
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Save, Loader2, PlusCircle, XCircle, ImagePlus } from 'lucide-react';
 
@@ -108,10 +108,26 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
   };
 
   const handleImageChange = (index, e) => {
-    const file = e.target.files[0];
-    if (file) {
+    const files = e.target.files;
+    if (files.length > 0) {
       const newImageSlots = [...imageSlots];
-      newImageSlots[index] = { url: URL.createObjectURL(file), file: file };
+      let currentSlotIndex = index;
+
+      for (let i = 0; i < files.length; i++) {
+        // Find the next available slot
+        while (currentSlotIndex < newImageSlots.length && newImageSlots[currentSlotIndex] !== null) {
+          currentSlotIndex++;
+        }
+
+        // If we found an available slot within the limit, fill it
+        if (currentSlotIndex < 8) {
+          const file = files[i];
+          newImageSlots[currentSlotIndex] = { url: URL.createObjectURL(file), file: file };
+          currentSlotIndex++; // Move to the next slot for the next file
+        } else {
+          break; // Stop if no more slots are available
+        }
+      }
       setImageSlots(newImageSlots);
     }
   };
@@ -134,7 +150,6 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         ...formData,
         purchasePrice: Number(formData.purchasePrice) || null,
         closingCosts: Number(formData.closingCosts) || null,
-        rehabContingency: Number(formData.rehabContingency) || null,
         rehabTimeline: Number(formData.rehabTimeline) || null,
         askingPrice: Number(formData.askingPrice) || null,
         arv: Number(formData.arv) || null,
@@ -150,8 +165,11 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         rehabItems: formData.rehabItems.map(item => ({
           ...item,
           cost: Number(item.cost) || 0
-        })).filter(item => item.name && item.cost > 0),
+        })).filter(item => item.name || item.cost > 0),
       };
+
+      // Explicitly remove the old rehabBudget field if it exists
+      delete dataToSave.rehabBudget;
 
       const residenceId = residenceToEdit ? residenceToEdit.id : doc(collection(db, 'residences')).id;
       const uploadedImageUrls = [];
@@ -183,7 +201,7 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         const residenceRef = doc(db, "residences", residenceToEdit.id);
         await updateDoc(residenceRef, { ...dataToSave, updatedAt: serverTimestamp() });
       } else {
-        await addDoc(collection(db, "residences"), { ...dataToSave, createdAt: new Date() });
+        await setDoc(doc(db, "residences", residenceId), { ...dataToSave, createdAt: new Date() });
       }
       onSaved();
     } catch (error) {
@@ -292,7 +310,7 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
                 <label className="upload-label">
                   <ImagePlus size={30} />
                   <span>Add Image</span>
-                  <input type="file" accept="image/*" onChange={(e) => handleImageChange(index, e)} />
+                  <input type="file" accept="image/*" multiple onChange={(e) => handleImageChange(index, e)} />
                 </label>
               )}
             </div>

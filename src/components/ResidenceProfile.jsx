@@ -1,6 +1,7 @@
 // src/components/ResidenceProfile.jsx
-import React, { useState, useEffect } from 'react';
-import { Trash2, Edit, Home, User, DollarSign, Percent, FileText, Image, ChevronLeft, ChevronRight, X, TrendingUp, TrendingDown, Briefcase } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import { useReactToPrint } from 'react-to-print';
+import { Printer, Trash2, Edit, Home, User, DollarSign, Percent, FileText, Image, ChevronLeft, ChevronRight, X, TrendingUp, TrendingDown, Briefcase } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const DetailItem = ({ label, value, isCurrency = false, isPercent = false }) => (
@@ -17,6 +18,9 @@ const DetailSection = ({ icon, title, children }) => (
 );
 
 export default function ResidenceProfile({ data, onDelete, onEdit }) {
+  const printRef = useRef();
+  const handlePrint = useReactToPrint({ content: () => printRef.current, documentTitle: `${data.propertyAddress}_Profile` });
+
   // Calculations based on the new spec
   const purchasePrice = Number(data.purchasePrice) || 0;
   const closingCosts = Number(data.closingCosts) || 0;
@@ -68,7 +72,7 @@ export default function ResidenceProfile({ data, onDelete, onEdit }) {
   }, [viewerState.isOpen, viewerState.index]);
 
   return (
-    <div className="glass-card">
+    <div className="glass-card screen-only">
       <AnimatePresence>
         {viewerState.isOpen && data.imageUrls?.length > 0 && (
           <motion.div className="image-viewer-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeViewer}>
@@ -92,6 +96,9 @@ export default function ResidenceProfile({ data, onDelete, onEdit }) {
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={() => onEdit(data)} className="btn-modern" style={{ background: 'var(--accent-blue)' }}><Edit size={20} /> EDIT</button>
           <button onClick={() => onDelete(data.id)} className="btn-modern" style={{ background: 'var(--accent-red)' }}><Trash2 size={20} /> DELETE</button>
+          <button onClick={handlePrint} className="btn-modern" style={{ background: 'var(--accent-green)' }}>
+            <Printer size={20} /> EXPORT PDF
+          </button>
         </div>
       </div>
 
@@ -179,6 +186,74 @@ export default function ResidenceProfile({ data, onDelete, onEdit }) {
           </div>
         </>
       )}
+
+      {/* ================================================================================= */}
+      {/* HIDDEN PRINT CONTAINER                                                            */}
+      {/* ================================================================================= */}
+      <div className="print-only">
+        <div ref={printRef} className="print-container" style={{ padding: '40px', color: 'black', background: 'white', fontFamily: 'Arial, sans-serif' }}>
+            <h1 style={{ borderBottom: '3px solid #333', paddingBottom: '10px', marginBottom: '20px' }}>{data.propertyAddress}</h1>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', margin: '40px 0' }}>
+                <div>
+                    <h3 style={{ background: '#eee', padding: '10px' }}>Ownership</h3>
+                    <DetailItem label="Owner Name" value={data.ownerName} />
+                    <DetailItem label="LLC Name" value={data.llcName} />
+                    <DetailItem label="Mailing Address" value={data.ownerMailingAddress} />
+                    <DetailItem label="Phone" value={data.phoneNumber} />
+                    <DetailItem label="Email" value={data.email} />
+                </div>
+                <div>
+                     <h3 style={{ background: '#eee', padding: '10px' }}>Property Details</h3>
+                    <DetailItem label="Year Built" value={data.yearBuilt} />
+                    <DetailItem label="Square Footage" value={data.squareFootage} />
+                    <DetailItem label="Beds / Baths" value={data.bedsBaths} />
+                    <DetailItem label="Lot Size" value={data.lotSize} />
+                </div>
+            </div>
+
+            <h3 style={{ background: '#eee', padding: '10px' }}>Acquisition & Rehab</h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
+              <tbody>
+                <tr style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '8px'}}>Date Purchased</td><td style={{padding: '8px'}}>{data.datePurchased}</td></tr>
+                <tr style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '8px'}}>Purchase Price</td><td style={{padding: '8px'}}>${purchasePrice.toLocaleString()}</td></tr>
+                <tr style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '8px'}}>Closing Costs</td><td style={{padding: '8px'}}>${closingCosts.toLocaleString()}</td></tr>
+                <tr style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '8px'}}>Rehab Budget</td><td style={{padding: '8px'}}>${rehabBudget.toLocaleString()}</td></tr>
+                <tr style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '8px'}}>Rehab Contingency</td><td style={{padding: '8px'}}>{rehabContingency}%</td></tr>
+                <tr style={{background: '#f0f0f0', fontWeight: 'bold'}}><td style={{padding: '15px 8px'}}>Total Rehab Cost</td><td style={{padding: '15px 8px'}}>${totalRehabCost.toLocaleString()}</td></tr>
+                <tr style={{background: '#e0e0e0', fontWeight: 'bold', borderTop: '2px solid #333'}}><td style={{padding: '15px 8px'}}>TOTAL PROJECT COST</td><td style={{padding: '15px 8px'}}>${totalProjectCost.toLocaleString()}</td></tr>
+              </tbody>
+            </table>
+
+            {data.rehabItems && data.rehabItems.length > 0 && (
+              <>
+                <h3 style={{ background: '#eee', padding: '10px', marginTop: '30px' }}>Rehab Items</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
+                  <thead>
+                    <tr style={{background: '#ddd'}}>
+                      <th style={{padding: '8px', textAlign: 'left'}}>Category</th>
+                      <th style={{padding: '8px', textAlign: 'left'}}>Item</th>
+                      <th style={{padding: '8px', textAlign: 'right'}}>Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.rehabItems.map((item, i) => (
+                      <tr key={i} style={{borderBottom: '1px solid #ddd'}}>
+                        <td style={{padding: '8px'}}>{item.category}</td>
+                        <td style={{padding: '8px'}}>{item.name}</td>
+                        <td style={{padding: '8px', textAlign: 'right'}}>${Number(item.cost || 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            <div style={{marginTop: '50px', fontSize: '12px', color: '#666', borderTop: '1px solid #ccc', paddingTop: '10px'}}>
+                Document generated by Nexus Research V2.0 on {new Date().toLocaleDateString()}
+            </div>
+        </div>
+      </div>
     </div>
   );
 }
