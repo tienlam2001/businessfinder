@@ -368,9 +368,6 @@ export default function BusinessProfile({ data, onDelete, onEdit }) {
         <div ref={valuationPrintRef} className="print-container" style={{ padding: '40px', color: 'black', background: 'white', fontFamily: 'Arial, sans-serif' }}>
             <h1 style={{ borderBottom: '3px solid #333', paddingBottom: '10px', marginBottom: '20px' }}>Valuation Report: {data.businessName}</h1>
             <p>Generated on {new Date().toLocaleDateString()}</p>
-            {data.businessType === 'Nail Salon' && (
-              <p><strong>Location Type:</strong> {data.locationType} | <strong>Size:</strong> {sqft} sqft</p>
-            )}
 
             <h3 style={{ background: '#eee', padding: '10px', marginTop: '30px' }}>Valuation Summary</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>

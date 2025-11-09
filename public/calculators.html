@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Calculators</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        /* Custom styles for better range slider appearance */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0; /* slate-200 */
+            border-radius: 9999px;
+            outline: none;
+            opacity: 0.9;
+            transition: opacity .2s;
+        }
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4f46e5; /* indigo-600 */
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px #4f46e5;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4f46e5; /* indigo-600 */
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px #4f46e5;
+        }
+        .tab-btn.active {
+            border-color: #4f46e5;
+            background-color: #eef2ff;
+            color: #4338ca;
+        }
+        .grade-bar-fill {
+            transition: width 0.5s ease-in-out;
+        }
+        .loader {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #4f46e5; /* Indigo */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Styles for Social Media Assistant */
+        .social-dropdown {
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.15s ease-in-out;
+        }
+        .social-dropdown-trigger:focus-within + .social-dropdown,
+        .social-dropdown:hover {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Password Overlay Styles */
+        #password-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(248, 250, 252, 0.95); /* bg-slate-50 with opacity */
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #tab-content-valuation, #tab-content-valuation * {
+                visibility: visible;
+            }
+            #tab-content-valuation {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            main, header, footer, #strategic-suggestions, .no-print, #password-overlay {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <!-- Password Protection Overlay -->
+    <div id="password-overlay">
+        <div class="bg-white p-8 rounded-lg shadow-xl border border-slate-200 max-w-sm w-full">
+            <h2 class="text-xl font-semibold text-center text-slate-800 mb-4">Enter Access Code</h2>
+            <form id="password-form">
+                <input type="password" id="password-input" class="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300 transition-all mb-4" placeholder="Password">
+                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-md shadow-lg hover:bg-indigo-700 transition-all duration-200 ease-in-out">
+                    Unlock
+                </button>
+                <p id="password-error" class="text-red-600 text-sm mt-2 text-center hidden">Incorrect password.</p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Content Area (Initially Hidden) -->
+    <div id="main-app-content" class="hidden">
+        <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+            <!-- Header -->
+            <header class="text-center mb-8 no-print">
+                <h1 class="text-3xl md:text-4xl font-bold text-slate-900">Business Calculators</h1>
+                <p class="mt-2 text-slate-600">Tools for smart pricing and investment decisions.</p>
+            </header>
+
+            <!-- Main Calculator Card -->
+            <main class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                <!-- Tab Navigation -->
+                <div class="border-b border-slate-200 mb-6 no-print">
+                    <nav class="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
+                        <button id="tab-btn-discount" class="tab-btn active whitespace-nowrap py-3 px-1 border-b-2 font-semibold text-sm">Discount Calculator</button>
+                        <button id="tab-btn-irr" class="tab-btn text-slate-500 hover:text-slate-700 whitespace-nowrap py-3 px-1 border-b-2 font-semibold text-sm border-transparent">IRR Acquisition</button>
+                        <button id="tab-btn-location" class="tab-btn text-slate-500 hover:text-slate-700 whitespace-nowrap py-3 px-1 border-b-2 font-semibold text-sm border-transparent">Location Analysis</button>
+                        <button id="tab-btn-kpi" class="tab-btn text-slate-500 hover:text-slate-700 whitespace-nowrap py-3 px-1 border-b-2 font-semibold text-sm border-transparent">Social Media KPI</button>
+                        <button id="tab-btn-valuation" class="tab-btn text-slate-500 hover:text-slate-700 whitespace-nowrap py-3 px-1 border-b-2 font-semibold text-sm border-transparent">Valuation</button>
+                        <button id="tab-btn-social" class="tab-btn text-slate-500 hover:text-slate-700 whitespace-nowrap py-3 px-1 border-b-2 font-semibold text-sm border-transparent">Social Media Assistant</button>
+                        <button id="tab-btn-settings" class="tab-btn text-slate-500 hover:text-slate-700 whitespace-nowrap py-3 px-1 border-b-2 font-semibold text-sm border-transparent">Settings</button>
+                    </nav>
+                </div>
+
+                <!-- Tab Content -->
+                <div id="tab-content-discount">
+                    <!-- DISCOUNT CALCULATOR CONTENT -->
+                    <div class="space-y-8">
+                        <section id="core-inputs">
+                            <h2 class="text-xl font-semibold mb-4 text-slate-900 flex items-center"><span class="bg-indigo-100 text-indigo-700 rounded-full h-8 w-8 flex items-center justify-center font-bold mr-3">1</span>Services & Cost</h2>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Service Prices</label>
+                                    <div id="services-container" class="space-y-3"></div>
+                                    <button id="add-service-btn" class="mt-3 w-full text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md py-2 transition-colors no-print">+ Add Another Service</button>
+                                </div>
+                                <div>
+                                    <label for="costValue" class="block text-sm font-medium text-slate-700">Cost of All Services</label>
+                                    <div class="mt-1 flex rounded-md shadow-sm">
+                                        <div class="relative flex-grow items-stretch focus-within:z-10">
+                                            <div class="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center"><span id="cost-symbol" class="text-slate-500 sm:text-sm">$</span></div>
+                                            <input type="number" id="costValue" value="60" class="block w-full rounded-none rounded-l-md border-slate-300 pl-7 py-2 focus:border-indigo-500 focus:ring-indigo-500" placeholder="0">
+                                        </div>
+                                        <select id="costType" class="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                                            <option value="fixed" selected>$</option>
+                                            <option value="percentage">%</option>
+                                        </select>
+                                    </div>
+                                    <p class="mt-2 text-sm text-slate-500">Total Price: <span id="totalPriceDisplay" class="font-bold text-slate-700">$100.00</span></p>
+                                </div>
+                            </div>
+                        </section>
+                        <section id="baseline-results" class="bg-slate-50/70 border border-slate-200 rounded-lg p-4">
+                            <h3 class="font-semibold text-slate-900 mb-2">Baseline (No Discount)</h3>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
+                                <div><p class="text-sm text-slate-500">Cost</p><p id="baselineCost" class="text-lg font-semibold text-slate-800">$60.00</p></div>
+                                <div><p class="text-sm text-slate-500">Profit</p><p id="baselineProfit" class="text-lg font-semibold text-green-600">$40.00</p></div>
+                                <div class="col-span-2 md:col-span-1"><p class="text-sm text-slate-500">Profit Margin</p><p id="baselineMargin" class="text-lg font-semibold text-slate-800">40.0%</p></div>
+                            </div>
+                        </section>
+                        <div>
+                            <h2 class="text-xl font-semibold mb-4 text-slate-900 flex items-center"><span class="bg-indigo-100 text-indigo-700 rounded-full h-8 w-8 flex items-center justify-center font-bold mr-3">2</span>Discount Scenarios</h2>
+                            <div class="space-y-6">
+                                <div class="border border-slate-200 rounded-lg p-4">
+                                    <h3 class="font-semibold text-slate-900 mb-4">Scenario A: Overall Discount on Total Price</h3>
+                                    <div class="mb-4">
+                                        <label class="block text-sm font-medium text-slate-700">Discount Percentage</label>
+                                        <div class="flex items-center gap-4 mt-1">
+                                            <input type="range" id="overallDiscountRange" min="0" max="100" value="10" step="0.5" class="w-full">
+                                            <input type="number" id="overallDiscountNumber" min="0" max="100" value="10" step="0.5" class="w-24 rounded-md border-slate-300 py-1.5 text-center focus:border-indigo-500 focus:ring-indigo-500"><span class="font-medium">%</span>
+                                        </div>
+                                    </div>
+                                    <div class="bg-white rounded-md p-3 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                        <div><p class="text-sm text-slate-500">New Price</p><p id="s1NewPrice" class="text-lg font-semibold text-indigo-600">$90.00</p></div>
+                                        <div><p class="text-sm text-slate-500">New Profit</p><p id="s1NewProfit" class="text-lg font-semibold text-indigo-600">$30.00</p></div>
+                                        <div><p class="text-sm text-slate-500">Profit Lost</p><p id="s1ProfitLost" class="text-lg font-semibold text-red-600">-$10.00</p></div>
+                                        <div><p class="text-sm text-slate-500">Offset</p><p id="s1ProfitOffset" class="text-lg font-semibold text-red-600">25.0%</p></div>
+                                    </div>
+                                </div>
+                                <div class="border border-slate-200 rounded-lg p-4">
+                                    <h3 class="font-semibold text-slate-900 mb-4">Scenario B: Individual Service Discounts</h3>
+                                    <div id="individual-discounts-container" class="space-y-4 mb-4"></div>
+                                    <div class="bg-white rounded-md p-3 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                        <div><p class="text-sm text-slate-500">New Price</p><p id="s2NewPrice" class="text-lg font-semibold text-indigo-600">$92.50</p></div>
+                                        <div><p class="text-sm text-slate-500">New Profit</p><p id="s2NewProfit" class="text-lg font-semibold text-indigo-600">$32.50</p></div>
+                                        <div><p class="text-sm text-slate-500">Profit Lost</p><p id="s2ProfitLost" class="text-lg font-semibold text-red-600">-$7.50</p></div>
+                                        <div><p class="text-sm text-slate-500">Offset</p><p id="s2ProfitOffset" class="text-lg font-semibold text-red-600">18.8%</p></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-content-irr" class="hidden">
+                    <!-- IRR CALCULATOR CONTENT -->
+                    <div class="space-y-6">
+                        <section>
+                            <h2 class="text-xl font-semibold mb-4 text-slate-900">Nail Salon Acquisition Analysis</h2>
+                            <p class="text-sm text-slate-600">Calculate the Internal Rate of Return (IRR) for your potential investment. IRR is the annualized rate of return you can expect. A higher IRR is generally better.</p>
+                        </section>
+                        <section class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                            <!-- Column 1: Inputs -->
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="initialInvestment" class="block text-sm font-medium text-slate-700">Initial Investment (Acquisition Cost)</label>
+                                    <input type="number" id="initialInvestment" value="150000" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                                <div>
+                                    <label for="projectionPeriod" class="block text-sm font-medium text-slate-700">Projection Period (Years)</label>
+                                    <select id="projectionPeriod" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        <option>3</option><option>4</option><option selected>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="exitValue" class="block text-sm font-medium text-slate-700">Projected Sale Price (at end of period)</label>
+                                    <input type="number" id="exitValue" value="180000" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                            </div>
+                            <!-- Column 2: Inputs -->
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="year1Revenue" class="block text-sm font-medium text-slate-700">Year 1 Estimated Revenue</label>
+                                    <input type="number" id="year1Revenue" value="120000" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                                <div>
+                                    <label for="revenueGrowth" class="block text-sm font-medium text-slate-700">Annual Revenue Growth Rate (%)</label>
+                                    <input type="number" id="revenueGrowth" value="5" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                                <div>
+                                    <label for="year1Expenses" class="block text-sm font-medium text-slate-700">Year 1 Estimated Expenses</label>
+                                    <input type="number" id="year1Expenses" value="70000" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                                <div>
+                                    <label for="expenseGrowth" class="block text-sm font-medium text-slate-700">Annual Expense Growth Rate (%)</label>
+                                    <input type="number" id="expenseGrowth" value="3" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                            </div>
+                        </section>
+                        <!-- Results Section -->
+                        <section class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                            <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                                <div>
+                                    <h3 class="font-semibold text-slate-900">Projected IRR</h3>
+                                    <p id="irrResult" class="text-3xl font-bold text-indigo-600">--.--%</p>
+                                </div>
+                                <button id="calculate-irr-btn" class="w-full md:w-auto bg-indigo-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-indigo-700 transition-colors no-print">Calculate</button>
+                            </div>
+                            <div class="mt-4 border-t border-slate-200 pt-4">
+                                <h4 class="text-sm font-semibold text-slate-800 mb-2">Projected Cash Flows</h4>
+                                <div id="cashflow-table" class="text-sm text-slate-600">
+                                    <p class="italic">Click "Calculate" to see cash flow projections.</p>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <div id="tab-content-location" class="hidden">
+                    <!-- LOCATION ANALYSIS CONTENT -->
+                    <div class="space-y-6">
+                        <section>
+                            <h2 id="location-analysis-title" class="text-xl font-semibold mb-2 text-slate-900">Location Analysis</h2>
+                             <!-- Updated Input Area -->
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <label for="location-city-input" class="block text-sm font-medium text-slate-700">City</label>
+                                    <input type="text" id="location-city-input" placeholder="e.g., Lake Mary" value="Lake Mary" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                                <div>
+                                    <label for="location-state-input" class="block text-sm font-medium text-slate-700">State</label>
+                                    <input type="text" id="location-state-input" placeholder="e.g., FL" value="FL" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                                <div>
+                                    <label for="location-zip-input" class="block text-sm font-medium text-slate-700">Zip Code (Optional)</label>
+                                    <input type="text" id="location-zip-input" placeholder="e.g., 32746" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                            </div>
+                            <button id="location-search-btn" class="w-full sm:w-auto bg-indigo-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center no-print">
+                                <span id="search-btn-text">Analyze</span>
+                                <svg id="search-btn-spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            </button>
+                        </section>
+
+                        <div id="location-loading-state" class="hidden h-64 flex flex-col items-center justify-center text-center">
+                            <div class="loader"></div>
+                            <p class="mt-4 text-slate-600 font-semibold">Analyzing location...</p>
+                            <p class="text-sm text-slate-500">This may take a moment.</p>
+                        </div>
+
+                        <div id="location-error-state" class="hidden h-64 flex flex-col items-center justify-center text-center bg-red-50 border border-red-200 rounded-lg p-4">
+                            <svg class="h-12 w-12 text-red-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                            <p id="location-error-message" class="mt-4 text-red-700 font-semibold">Could not retrieve analysis. Please try a different location.</p>
+                        </div>
+
+                        <div id="location-analysis-content" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- Left Column: Data Points -->
+                            <div class="space-y-6">
+                                <div class="border border-slate-200 rounded-lg p-4">
+                                    <h3 class="font-semibold text-slate-900 mb-3">Key Demographics</h3>
+                                    <ul id="demographics-list" class="space-y-2 text-sm"></ul>
+                                </div>
+                                <div class="border border-slate-200 rounded-lg p-4">
+                                    <h3 class="font-semibold text-slate-900 mb-3">Local Competition</h3>
+                                    <p id="competition-level" class="text-sm text-slate-600 mb-2"></p>
+                                    <ul id="competitors-list" class="space-y-1 text-sm list-disc list-inside"></ul>
+                                </div>
+                                <div class="border border-slate-200 rounded-lg p-4">
+                                    <h3 class="font-semibold text-slate-900 mb-3">Growth & Opportunity</h3>
+                                    <p id="growth-opportunity-text" class="text-sm text-slate-600"></p>
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Score & Summary -->
+                            <div class="bg-slate-50 border border-slate-200 rounded-lg p-6">
+                                <h3 class="text-lg font-semibold text-slate-900 text-center mb-4">Overall Location Score</h3>
+                                <div class="flex items-center justify-center mb-4">
+                                    <p id="location-score-text" class="text-6xl font-bold text-indigo-600">--</p>
+                                    <p class="text-2xl font-semibold text-slate-500 self-end mb-1">/ 10</p>
+                                </div>
+                                <div class="w-full bg-slate-200 rounded-full h-4 mb-4">
+                                    <div id="location-score-bar" class="grade-bar-fill bg-indigo-600 h-4 rounded-full" style="width: 0%;"></div>
+                                </div>
+                                
+                                <div class="space-y-3">
+                                    <h4 class="font-semibold text-slate-800">Scoring Breakdown:</h4>
+                                    <div id="scoring-breakdown-list"></div>
+                                    
+                                    <h4 class="font-semibold text-slate-800 pt-3 border-t border-slate-200">Conclusion:</h4>
+                                    <p id="conclusion-text" class="text-sm text-slate-600"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-content-kpi" class="hidden">
+                    <!-- SOCIAL MEDIA KPI CONTENT -->
+                    <div class="space-y-6">
+                        <section>
+                            <h2 class="text-xl font-semibold mb-2 text-slate-900">Social Media Marketing KPI Dashboard</h2>
+                            <p class="text-sm text-slate-600">Enter your campaign data to calculate key performance indicators and measure your marketing effectiveness.</p>
+                        </section>
+                        <section>
+                            <h3 class="text-lg font-semibold mb-4 text-slate-900">Input Your Campaign Metrics</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                                <div class="space-y-4">
+                                    <div>
+                                        <label for="kpi-impressions" class="block text-sm font-medium text-slate-700">Impressions</label>
+                                        <input type="number" id="kpi-impressions" value="50000" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                    </div>
+                                    <div>
+                                        <label for="kpi-reach" class="block text-sm font-medium text-slate-700">Reach</label>
+                                        <input type="number" id="kpi-reach" value="35000" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                    </div>
+                                    <div>
+                                        <label for="kpi-clicks" class="block text-sm font-medium text-slate-700">Website Clicks</label>
+                                        <input type="number" id="kpi-clicks" value="1200" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                    </div>
+                                </div>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label for="kpi-engagement" class="block text-sm font-medium text-slate-700">Total Engagement (Likes, Comments, Shares)</label>
+                                        <input type="number" id="kpi-engagement" value="2500" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                    </div>
+                                    <div>
+                                        <label for="kpi-spend" class="block text-sm font-medium text-slate-700">Total Ad Spend ($)</label>
+                                        <input type="number" id="kpi-spend" value="500" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <section>
+                            <h3 class="text-lg font-semibold mb-4 text-slate-900">Calculated KPIs</h3>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center flex flex-col justify-center">
+                                    <p class="text-sm text-slate-500">Engagement Rate</p>
+                                    <p id="kpi-engagement-rate" class="text-2xl font-bold text-indigo-600">5.00%</p>
+                                </div>
+                                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center flex flex-col justify-center">
+                                    <p class="text-sm text-slate-500">Click-Through Rate (CTR)</p>
+                                    <p id="kpi-ctr" class="text-2xl font-bold text-indigo-600">2.40%</p>
+                                </div>
+                                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center flex flex-col justify-center">
+                                    <p class="text-sm text-slate-500">Cost Per Click (CPC)</p>
+                                    <p id="kpi-cpc" class="text-2xl font-bold text-indigo-600">$0.42</p>
+                                </div>
+                                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center flex flex-col justify-center">
+                                    <p class="text-sm text-slate-500">Cost Per Mille (CPM)</p>
+                                    <p id="kpi-cpm" class="text-2xl font-bold text-indigo-600">$10.00</p>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <div id="tab-content-valuation" class="hidden">
+                    <!-- VALUATION CALCULATOR CONTENT -->
+                    <div class="space-y-6">
+                        <section>
+                            <h2 class="text-xl font-semibold mb-2 text-slate-900">Nail Salon Valuation Calculator</h2>
+                            <p class="text-sm text-slate-600">Estimate the value of a nail salon based on location, income, and expenses.</p>
+                        </section>
+
+                        <!-- Step 1: Location -->
+                        <section>
+                            <h3 class="text-lg font-semibold mb-4 text-slate-900 flex items-center"><span class="bg-indigo-100 text-indigo-700 rounded-full h-8 w-8 flex items-center justify-center font-bold mr-3">1</span>Location Base Value</h3>
+                            <div id="location-type-selector" class="grid sm:grid-cols-3 gap-4">
+                            <label class="border rounded-lg p-4 cursor-pointer hover:border-indigo-500"><input type="radio" name="location-type" class="mr-2" value="50000" checked>Big plaza, ample parking</label>
+                            <label class="border rounded-lg p-4 cursor-pointer hover:border-indigo-500"><input type="radio" name="location-type" class="mr-2" value="15000">Small, central, high traffic</label>
+                            <label class="border rounded-lg p-4 cursor-pointer hover:border-indigo-500"><input type="radio" name="location-type" class="mr-2" value="0">Other location type</label>
+                            </div>
+                        </section>
+                        
+                        <!-- Step 2: Income & Expenses -->
+                        <section>
+                            <h3 class="text-lg font-semibold mb-4 text-slate-900 flex items-center"><span class="bg-indigo-100 text-indigo-700 rounded-full h-8 w-8 flex items-center justify-center font-bold mr-3">2</span>Income & Expenses</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 p-4 border border-slate-200 rounded-lg">
+                                <!-- Income -->
+                                <div class="space-y-4">
+                                    <div>
+                                        <label for="val-annual-revenue" class="block text-sm font-medium text-slate-700">Total Annual Revenue</label>
+                                        <input type="number" id="val-annual-revenue" value="480000" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                    </div>
+                                </div>
+                                <!-- Expenses -->
+                                <div class="space-y-4">
+                                    <div>
+                                        <label for="val-rent" class="block text-sm font-medium text-slate-700">Monthly Rent</label>
+                                        <input type="number" id="val-rent" value="5000" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                    </div>
+                                    <div>
+                                        <label for="val-supplies" class="block text-sm font-medium text-slate-700">Monthly Supplies</label>
+                                        <input type="number" id="val-supplies" value="2000" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                    </div>
+                                    <div>
+                                        <label for="val-utilities" class="block text-sm font-medium text-slate-700">Monthly Utilities</label>
+                                        <input type="number" id="val-utilities" value="800" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label for="val-processor-fee" class="block text-sm font-medium text-slate-700">Processor Fee (%)</label>
+                                            <input type="number" id="val-processor-fee" value="2.5" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        </div>
+                                        <div>
+                                            <label for="val-commission" class="block text-sm font-medium text-slate-700">Commission (%)</label>
+                                            <input type="number" id="val-commission" value="60" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Step 3: Valuation -->
+                        <section>
+                            <h3 class="text-lg font-semibold mb-4 text-slate-900 flex items-center"><span class="bg-indigo-100 text-indigo-700 rounded-full h-8 w-8 flex items-center justify-center font-bold mr-3">3</span>Valuation Results</h3>
+                            <div class="bg-slate-50 border border-slate-200 rounded-lg p-6 space-y-4">
+                                <!-- Main Result -->
+                                <div class="flex items-center justify-between">
+                                    <div class="text-left">
+                                        <p class="text-sm font-medium text-slate-600">Total Estimated Valuation</p>
+                                        <p id="total-valuation" class="text-4xl font-bold text-indigo-600">$0</p>
+                                    </div>
+                                    <button id="print-valuation-pdf" class="no-print bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd" /></svg>
+                                        Print to PDF
+                                    </button>
+                                </div>
+                                <!-- Breakdown -->
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
+                                    <div class="border-r pr-4">
+                                        <h4 class="font-semibold text-slate-800">Valuation Breakdown</h4>
+                                        <dl class="mt-2 text-sm">
+                                            <div class="flex justify-between py-1"><dt class="text-slate-600">Location Base Value</dt><dd id="val-location-base" class="font-semibold text-slate-900">$0</dd></div>
+                                            <div class="flex justify-between py-1 border-t"><dt class="text-slate-600">Annual Cash Flow</dt><dd id="val-annual-cashflow" class="font-semibold text-slate-900">$0</dd></div>
+                                            <div class="flex justify-between py-1"><dt class="text-slate-600">Income Valuation (85% CoC)</dt><dd id="val-income-valuation" class="font-semibold text-slate-900">$0</dd></div>
+                                        </dl>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-semibold text-slate-800">Quick Valuation Methods</h4>
+                                        <dl class="mt-2 text-sm">
+                                            <div class="flex justify-between py-1"><dt class="text-slate-600">Monthly Income x3</dt><dd id="val-fast-valuation" class="font-semibold text-slate-900">$0</dd></div>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <div id="tab-content-social" class="hidden">
+                    <!-- SOCIAL MEDIA ASSISTANT CONTENT -->
+                    <div class="w-full max-w-2xl mx-auto">
+                        <!-- Header -->
+                        <header class="text-center mb-6">
+                            <h1 class="text-3xl font-bold text-gray-800">Ecco Nails & Spa</h1>
+                            <p class="text-lg text-gray-500">Social Media Assistant</p>
+                        </header>
+
+                        <!-- Input Form -->
+                        <form id="social-form">
+                            <div class="mb-4">
+                                <label for="social-post-topic" class="block text-sm font-medium text-gray-700 mb-2">
+                                    What is your post about?
+                                </label>
+                                <textarea id="social-post-topic" rows="3" placeholder="e.g., 'A beautiful new set of fall-themed nail art' or 'Our relaxing deluxe pedicure'" class="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-pink-300 focus:border-pink-300 transition-all"></textarea>
+                            </div>
+
+                            <!-- Post Ideas Dropdown -->
+                            <div class="relative mb-4 social-dropdown-trigger">
+                                <button type="button" class="inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-300">
+                                    Need ideas?
+                                    <svg class="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                                </button>
+                                <div id="social-ideas-dropdown" class="social-dropdown absolute z-10 left-0 mt-2 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
+                                    <div class="py-1" role="menu" aria-orientation="vertical">
+                                        <!-- Ideas will be populated by JS -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Generate Button -->
+                            <button type="submit" id="social-generate-btn" class="w-full flex items-center justify-center bg-pink-500 text-white font-bold py-3 px-4 rounded-md shadow-lg hover:bg-pink-600 transition-all duration-200 ease-in-out disabled:bg-gray-400 disabled:cursor-not-allowed">
+                                <span id="social-btn-text">
+                                    <svg class="inline-block mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.00001C15 4.00001 16.7341 5.31481 18 7.00001C19.2659 8.6852 20 11.5 20 11.5C20 11.5 18.2341 12.8148 17 14.5C15.7659 16.1852 15 19 15 19M9 4.00001C9 4.00001 7.26589 5.31481 6 7.00001C4.73411 8.6852 4 11.5 4 11.5C4 11.5 5.76589 12.8148 7 14.5C8.23411 16.1852 9 19 9 19M12 2V22" /></svg>
+                                    Generate Content
+                                </span>
+                                <span id="social-btn-spinner" class="hidden">
+                                    <svg class="inline-block mr-2 h-5 w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                    Generating...
+                                </span>
+                            </button>
+                        </form>
+
+                        <!-- Error Message -->
+                        <div id="social-error" class="hidden mt-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-md text-center"></div>
+
+                        <!-- Results -->
+                        <div id="social-results" class="hidden mt-8 border-t border-gray-200 pt-6">
+                            <!-- Caption Output -->
+                            <div id="social-caption-result" class="mb-6">
+                                <div class="flex justify-between items-center mb-2">
+                                    <h3 class="text-lg font-semibold text-gray-800">Generated Caption</h3>
+                                    <button data-type="caption" class="social-copy-btn flex items-center text-sm text-pink-500 hover:text-pink-700 transition-colors">
+                                        <svg class="copy-icon mr-1 h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                        <svg class="check-icon hidden mr-1 h-4 w-4 text-green-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+                                        <span class="copy-text">Copy</span>
+                                    </button>
+                                </div>
+                                <div id="social-caption-output" class="p-4 bg-gray-50 border border-gray-200 rounded-md whitespace-pre-wrap font-serif text-gray-700"></div>
+                            </div>
+
+                            <!-- Hashtags Output -->
+                            <div id="social-hashtags-result">
+                                <div class="flex justify-between items-center mb-2">
+                                    <h3 class="text-lg font-semibold text-gray-800">Generated Hashtags</h3>
+                                    <button data-type="hashtags" class="social-copy-btn flex items-center text-sm text-pink-500 hover:text-pink-700 transition-colors">
+                                        <svg class="copy-icon mr-1 h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                        <svg class="check-icon hidden mr-1 h-4 w-4 text-green-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+                                        <span class="copy-text">Copy</span>
+                                    </button>
+                                </div>
+                                <div class="p-4 bg-gray-50 border border-gray-200 rounded-md">
+                                    <p id="social-hashtags-output" class="text-gray-600 leading-relaxed"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-content-settings" class="hidden">
+                    <!-- SETTINGS TAB CONTENT -->
+                     <div class="space-y-6">
+                        <section>
+                            <h2 class="text-xl font-semibold mb-2 text-slate-900">Settings</h2>
+                            <p class="text-sm text-slate-600">Manage application settings.</p>
+                        </section>
+                         <section>
+                            <h3 class="text-lg font-semibold mb-4 text-slate-900">Access Code</h3>
+                             <div class="space-y-4 max-w-md">
+                                 <div>
+                                    <label for="current-password" class="block text-sm font-medium text-slate-700">Current Access Code</label>
+                                    <input type="password" id="current-password" readonly class="mt-1 block w-full rounded-md border-slate-300 bg-slate-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 cursor-not-allowed">
+                                    <button id="show-hide-password" type="button" class="text-xs text-indigo-600 hover:text-indigo-800 mt-1">Show</button>
+                                 </div>
+                                <div>
+                                    <label for="new-password" class="block text-sm font-medium text-slate-700">New Access Code</label>
+                                    <input type="password" id="new-password" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                                <button id="save-password-btn" class="w-full bg-indigo-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-indigo-700 transition-colors">Save New Code</button>
+                                <p id="password-save-feedback" class="text-sm text-center"></p>
+                             </div>
+                         </section>
+                    </div>
+                </div>
+
+
+            </main>
+            
+            <!-- Strategic Suggestions Section (visible for discount calculator) -->
+            <section id="strategic-suggestions" class="mt-12 no-print">
+                <h2 class="text-2xl font-bold text-center text-slate-900 mb-6">How to Discount Smartly</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Suggestion Cards... -->
+                     <div class="bg-white rounded-xl shadow-md p-6 flex flex-col"><div class="flex items-center mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500 mr-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg><h3 class="font-semibold text-lg text-slate-800">Bundle Services</h3></div><p class="text-slate-600 text-sm flex-grow">Combine a high-profit service with a lower-cost one. The package deal feels like a big win for the customer, while your overall profit remains strong.</p><p class="mt-4 text-xs text-slate-500 bg-slate-50 p-2 rounded-md"><b>Try it:</b> Add both services above. Apply a discount only to the lower-margin service to see the effect.</p></div>
+                     <div class="bg-white rounded-xl shadow-md p-6 flex flex-col"><div class="flex items-center mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500 mr-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></svg><h3 class="font-semibold text-lg text-slate-800">Add Value, Not Discounts</h3></div><p class="text-slate-600 text-sm flex-grow">Offer a free, low-cost bonus item or service. The customer's perceived value is often higher than your actual cost, protecting your cash profit.</p><p class="mt-4 text-xs text-slate-500 bg-slate-50 p-2 rounded-md"><b>Try it:</b> Calculate a full-price sale. Compare that profit to the direct cost of your "bonus" item.</p></div>
+                     <div class="bg-white rounded-xl shadow-md p-6 flex flex-col"><div class="flex items-center mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500 mr-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg><h3 class="font-semibold text-lg text-slate-800">Create Volume Tiers</h3></div><p class="text-slate-600 text-sm flex-grow">Encourage larger purchases by offering better discounts for more volume (e.g., "Buy 2, get 3rd 50% off"). This boosts total revenue per transaction.</p><p class="mt-4 text-xs text-slate-500 bg-slate-50 p-2 rounded-md"><b>Try it:</b> Add three services. Set the discount for the third service to 50% and watch the total profit.</p></div>
+                     <div class="bg-white rounded-xl shadow-md p-6 flex flex-col"><div class="flex items-center mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500 mr-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><h3 class="font-semibold text-lg text-slate-800">Use Strategic Timing</h3></div><p class="text-slate-600 text-sm flex-grow">Offer "Early Bird" or "Off-Peak" discounts. This helps you manage your schedule and fill quieter periods with revenue you wouldn't otherwise have.</p></div>
+                     <div class="bg-white rounded-xl shadow-md p-6 flex flex-col"><div class="flex items-center mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500 mr-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg><h3 class="font-semibold text-lg text-slate-800">Invest in New Customers</h3></div><p class="text-slate-600 text-sm flex-grow">View a discount for a first-time customer as a marketing expense. The goal is to earn their loyalty for future, full-price business.</p></div>
+                     <div class="bg-white rounded-xl shadow-md p-6 flex flex-col"><div class="flex items-center mb-3"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500 mr-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg><h3 class="font-semibold text-lg text-slate-800">Protect Key Margins</h3></div><p class="text-slate-600 text-sm flex-grow">When discounting a bundle, always apply the percentage off to your lowest-margin items first. This protects the profit from your most valuable services.</p></div>
+                </div>
+            </section>
+
+            <footer class="text-center mt-8 no-print">
+                <p class="text-sm text-slate-500">Created to help businesses make informed pricing decisions.</p>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        // --- UTILITY FUNCTIONS (Global Scope) ---
+
+        /**
+         * Implements exponential backoff for fetching from the API.
+         * @param {function} fetchFn - The fetch function to retry.
+         * @param {number} maxRetries - Maximum number of retries.
+         * @param {number} baseDelay - Base delay in ms.
+         * @returns {Promise<Response>}
+         */
+        async function fetchWithBackoff(fetchFn, maxRetries = 5, baseDelay = 1000) {
+            let attempt = 0;
+            while (attempt < maxRetries) {
+                try {
+                    const response = await fetchFn();
+                    if (response.ok) {
+                        return response;
+                    }
+                    if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+                        console.error(`Client error: ${response.status}. Not retrying.`);
+                        return response;
+                    }
+                    throw new Error(`API request failed with status ${response.status}`);
+                } catch (error) {
+                    if (attempt === maxRetries - 1) {
+                        console.error("Max retries reached. Failing.");
+                        throw error;
+                    }
+                    const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+                attempt++;
+            }
+             // Should not be reached if maxRetries > 0, but satisfy TS/lint
+             throw new Error("fetchWithBackoff failed after maximum retries.");
+        }
+
+        /**
+         * Copies text to the clipboard. Uses document.execCommand fallback.
+         * @param {string} text - The text to copy.
+         * @returns {Promise<boolean>} - True if successful, false otherwise.
+         */
+        async function copyToClipboard(text) {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                    return true;
+                } else {
+                    throw new Error('Using fallback');
+                }
+            } catch (err) {
+                try {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-9999px';
+                    textArea.style.opacity = 0;
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    return successful;
+                } catch (fallbackErr) {
+                    console.error('Fallback copy failed:', fallbackErr);
+                    return false;
+                }
+            }
+        }
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- CONSTANTS ---
+            const PASSWORD_STORAGE_KEY = 'appAccessCode';
+            const DEFAULT_PASSWORD = 'lam123';
+
+            // --- DOM Elements ---
+            const passwordOverlay = document.getElementById('password-overlay');
+            const passwordForm = document.getElementById('password-form');
+            const passwordInput = document.getElementById('password-input');
+            const passwordError = document.getElementById('password-error');
+            const mainAppContent = document.getElementById('main-app-content');
+
+            // --- Password Check Logic ---
+            const storedPassword = localStorage.getItem(PASSWORD_STORAGE_KEY) || DEFAULT_PASSWORD;
+
+            // Immediately check password on load
+            function checkInitialPassword() {
+                const enteredPassword = passwordInput.value;
+                 if (enteredPassword === storedPassword) {
+                    passwordOverlay.style.display = 'none';
+                    mainAppContent.classList.remove('hidden');
+                    initializeTabsAndCalculators();
+                 } else if (enteredPassword) { // Only show error if they tried entering something
+                     passwordError.classList.remove('hidden');
+                 }
+            }
+
+            passwordForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                checkInitialPassword(); // Reuse the check logic on submit
+            });
+
+            // Initial focus for easier entry
+            passwordInput.focus();
+
+            // --- Initialize Tabs and Calculators (Function called after password success) ---
+            function initializeTabsAndCalculators() {
+                const tabButtons = {
+                    discount: document.getElementById('tab-btn-discount'),
+                    irr: document.getElementById('tab-btn-irr'),
+                    location: document.getElementById('tab-btn-location'),
+                    kpi: document.getElementById('tab-btn-kpi'),
+                    valuation: document.getElementById('tab-btn-valuation'),
+                    social: document.getElementById('tab-btn-social'),
+                    settings: document.getElementById('tab-btn-settings'),
+                };
+                const tabContents = {
+                    discount: document.getElementById('tab-content-discount'),
+                    irr: document.getElementById('tab-content-irr'),
+                    location: document.getElementById('tab-content-location'),
+                    kpi: document.getElementById('tab-content-kpi'),
+                    valuation: document.getElementById('tab-content-valuation'),
+                    social: document.getElementById('tab-content-social'),
+                    settings: document.getElementById('tab-content-settings'),
+                };
+                const suggestions = document.getElementById('strategic-suggestions');
+
+                function switchTab(activeTab) {
+                    Object.keys(tabButtons).forEach(key => {
+                        const btn = tabButtons[key];
+                        const content = tabContents[key];
+                        if (!btn || !content) return;
+                        if (key === activeTab) {
+                            btn.classList.add('active');
+                            content.classList.remove('hidden');
+                        } else {
+                            btn.classList.remove('active');
+                            content.classList.add('hidden');
+                        }
+                    });
+                     if(suggestions) suggestions.classList.toggle('hidden', activeTab !== 'discount');
+                }
+
+                Object.keys(tabButtons).forEach(key => {
+                    if (tabButtons[key]) {
+                        tabButtons[key].addEventListener('click', () => switchTab(key));
+                    }
+                });
+
+
+                // --- INITIALIZE CALCULATORS ---
+                setupDiscountCalculator();
+                setupIrrCalculator();
+                setupLocationAnalysis();
+                setupKpiDashboard();
+                setupValuationCalculator();
+                setupSocialMediaAssistant();
+                setupSettings(); // Initialize Settings tab
+            }
+
+            // --- Calculator Setup Functions ---
+            function setupDiscountCalculator() {
+                let services = [{ id: Date.now() + 1, price: 50, discount: 0 }, { id: Date.now() + 2, price: 50, discount: 15 }];
+                const servicesContainer = document.getElementById('services-container');
+                const addServiceBtn = document.getElementById('add-service-btn');
+                const individualDiscountsContainer = document.getElementById('individual-discounts-container');
+                const inputs = {
+                    costValue: document.getElementById('costValue'),
+                    costType: document.getElementById('costType'),
+                    overallDiscountRange: document.getElementById('overallDiscountRange'),
+                    overallDiscountNumber: document.getElementById('overallDiscountNumber'),
+                };
+                const outputs = {
+                    costSymbol: document.getElementById('cost-symbol'),
+                    totalPriceDisplay: document.getElementById('totalPriceDisplay'),
+                    baselineCost: document.getElementById('baselineCost'),
+                    baselineProfit: document.getElementById('baselineProfit'),
+                    baselineMargin: document.getElementById('baselineMargin'),
+                    s1NewPrice: document.getElementById('s1NewPrice'),
+                    s1NewProfit: document.getElementById('s1NewProfit'),
+                    s1ProfitLost: document.getElementById('s1ProfitLost'),
+                    s1ProfitOffset: document.getElementById('s1ProfitOffset'),
+                    s2NewPrice: document.getElementById('s2NewPrice'),
+                    s2NewProfit: document.getElementById('s2NewProfit'),
+                    s2ProfitLost: document.getElementById('s2ProfitLost'),
+                    s2ProfitOffset: document.getElementById('s2ProfitOffset'),
+                };
+
+                const formatCurrency = (value) => value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+                const render = () => {
+                    if (!servicesContainer || !individualDiscountsContainer) return;
+                    servicesContainer.innerHTML = '';
+                    individualDiscountsContainer.innerHTML = '';
+                    services.forEach((service, index) => {
+                        const serviceDiv = document.createElement('div');
+                        serviceDiv.className = 'flex items-center gap-2';
+                        serviceDiv.innerHTML = `&lt;div class="relative flex-grow rounded-md shadow-sm"&gt;&lt;div class="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center"&gt;&lt;span class="text-slate-500 sm:text-sm"&gt;$&lt;/span&gt;&lt;/div&gt;&lt;input type="number" data-id="${service.id}" value="${service.price}" class="service-price-input block w-full rounded-md border-slate-300 pl-7 pr-4 py-2 focus:border-indigo-500 focus:ring-indigo-500" placeholder="0.00"&gt;&lt;/div&gt;&lt;button data-id="${service.id}" class="remove-service-btn text-slate-400 hover:text-red-500 p-1 rounded-full ${services.length > 1 ? '' : 'invisible'}" title="Remove service"&gt;&lt;svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"&gt;&lt;path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /&gt;&lt;/svg&gt;&lt;/button&gt;`;
+                        servicesContainer.appendChild(serviceDiv);
+                        const discountDiv = document.createElement('div');
+                        discountDiv.innerHTML = `&lt;label class="block text-sm font-medium text-slate-700"&gt;Service ${index + 1} Discount&lt;/label&gt;&lt;div class="flex items-center gap-4 mt-1"&gt;&lt;input type="range" data-id="${service.id}" value="${service.discount}" min="0" max="100" step="0.5" class="individual-discount-range w-full"&gt;&lt;input type="number" data-id="${service.id}" value="${service.discount}" min="0" max="100" step="0.5" class="individual-discount-number w-24 rounded-md border-slate-300 py-1.5 text-center focus:border-indigo-500 focus:ring-indigo-500"&gt;&lt;span class="font-medium"&gt;%&lt;/span&gt;&lt;/div&gt;`;
+                        individualDiscountsContainer.appendChild(discountDiv);
+                    });
+                    calculate();
+                };
+                const calculate = () => {
+                    if (Object.values(outputs).some(el => !el) || !inputs.costValue || !inputs.costType || !inputs.overallDiscountNumber) return;
+                    const fullPrice = services.reduce((acc, s) => acc + (parseFloat(s.price) || 0), 0); // Ensure prices are numbers
+                    outputs.totalPriceDisplay.textContent = formatCurrency(fullPrice);
+                    const costValue = parseFloat(inputs.costValue.value) || 0;
+                    const costType = inputs.costType.value;
+                    const cost = costType === 'percentage' ? fullPrice * (costValue / 100) : costValue;
+                    const baselineProfit = fullPrice - cost;
+                    const baselineMargin = fullPrice > 0 ? (baselineProfit / fullPrice) * 100 : 0;
+                    outputs.baselineCost.textContent = formatCurrency(cost);
+                    outputs.baselineProfit.textContent = formatCurrency(baselineProfit);
+                    outputs.baselineMargin.textContent = `${baselineMargin.toFixed(1)}%`;
+                    const overallDiscount = parseFloat(inputs.overallDiscountNumber.value) || 0;
+                    const s1NewPrice = fullPrice * (1 - overallDiscount / 100);
+                    const s1NewProfit = s1NewPrice - cost;
+                    const s1ProfitLost = baselineProfit - s1NewProfit;
+                    const s1ProfitOffset = baselineProfit !== 0 ? (s1ProfitLost / baselineProfit) * 100 : 0; // Avoid division by zero
+                    outputs.s1NewPrice.textContent = formatCurrency(s1NewPrice);
+                    outputs.s1NewProfit.textContent = formatCurrency(s1NewProfit);
+                    outputs.s1ProfitLost.textContent = `${s1ProfitLost >= 0 ? '+' : '-'}${formatCurrency(Math.abs(s1ProfitLost))}`; // Show +/-
+                    outputs.s1ProfitOffset.textContent = `${s1ProfitOffset.toFixed(1)}%`;
+                    const s2NewPrice = services.reduce((acc, s) => acc + ((parseFloat(s.price) || 0) * (1 - (parseFloat(s.discount) || 0) / 100)), 0);
+                    const s2NewProfit = s2NewPrice - cost;
+                    const s2ProfitLost = baselineProfit - s2NewProfit;
+                    const s2ProfitOffset = baselineProfit !== 0 ? (s2ProfitLost / baselineProfit) * 100 : 0;
+                    outputs.s2NewPrice.textContent = formatCurrency(s2NewPrice);
+                    outputs.s2NewProfit.textContent = formatCurrency(s2NewProfit);
+                    outputs.s2ProfitLost.textContent = `${s2ProfitLost >= 0 ? '+' : '-'}${formatCurrency(Math.abs(s2ProfitLost))}`;
+                    outputs.s2ProfitOffset.textContent = `${s2ProfitOffset.toFixed(1)}%`;
+                };
+                addServiceBtn?.addEventListener('click', () => { services.push({ id: Date.now(), price: 0, discount: 0 }); render(); });
+                servicesContainer?.addEventListener('click', e => { if (e.target.closest('.remove-service-btn')) { services = services.filter(s => s.id !== Number(e.target.closest('.remove-service-btn').dataset.id)); render(); } });
+                servicesContainer?.addEventListener('input', e => { if (e.target.classList.contains('service-price-input')) { const service = services.find(s => s.id === Number(e.target.dataset.id)); if (service) { service.price = parseFloat(e.target.value) || 0; calculate(); } } });
+                individualDiscountsContainer?.addEventListener('input', e => { const target = e.target; const service = services.find(s => s.id === Number(target.dataset.id)); if (service) { const value = parseFloat(target.value) || 0; service.discount = Math.max(0, Math.min(100, value)); if (target.type === 'range' && target.nextElementSibling) target.nextElementSibling.value = service.discount; else if (target.type === 'number' && target.previousElementSibling) target.previousElementSibling.value = service.discount; calculate(); } }); // Added bounds check
+                inputs.costType?.addEventListener('change', () => { if(outputs.costSymbol) outputs.costSymbol.textContent = inputs.costType.value === 'percentage' ? '%' : '$'; calculate(); });
+                inputs.costValue?.addEventListener('input', calculate);
+                inputs.overallDiscountRange?.addEventListener('input', () => { if(inputs.overallDiscountNumber) inputs.overallDiscountNumber.value = inputs.overallDiscountRange.value; calculate(); });
+                inputs.overallDiscountNumber?.addEventListener('input', () => { if(inputs.overallDiscountRange) inputs.overallDiscountRange.value = inputs.overallDiscountNumber.value; calculate(); });
+                render();
+            }
+
+            function setupIrrCalculator() {
+                const irrInputs = { initialInvestment: document.getElementById('initialInvestment'), projectionPeriod: document.getElementById('projectionPeriod'), exitValue: document.getElementById('exitValue'), year1Revenue: document.getElementById('year1Revenue'), revenueGrowth: document.getElementById('revenueGrowth'), year1Expenses: document.getElementById('year1Expenses'), expenseGrowth: document.getElementById('expenseGrowth'), };
+                const calculateBtn = document.getElementById('calculate-irr-btn'); const irrResultEl = document.getElementById('irrResult'); const cashflowTableEl = document.getElementById('cashflow-table');
+                if (!calculateBtn || !irrResultEl || !cashflowTableEl || Object.values(irrInputs).some(el => !el)) return;
+                const formatCurrency = (value) => value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+                const calculateNPV = (rate, cashflows) => cashflows.reduce((acc, val, i) => acc + val / Math.pow(1 + rate, i), 0);
+                const calculateIRR = (cashflows) => { const MAX_ITERATIONS = 100; const PRECISION = 1e-6; let lowerBound = -0.999, upperBound = 2.0; const npvLower = calculateNPV(lowerBound, cashflows); const npvUpper = calculateNPV(upperBound, cashflows); if (isNaN(npvLower) || isNaN(npvUpper) || npvLower * npvUpper >= 0) { console.warn("IRR bounds don't bracket zero."); return null; } for (let i = 0; i < MAX_ITERATIONS; i++) { let midRate = (lowerBound + upperBound) / 2; let npvAtMid = calculateNPV(midRate, cashflows); if (isNaN(npvAtMid)) return null; if (Math.abs(npvAtMid) < PRECISION || Math.abs(upperBound - lowerBound) < PRECISION) return midRate * 100; if (calculateNPV(lowerBound, cashflows) * npvAtMid < 0) upperBound = midRate; else lowerBound = midRate; } console.warn("IRR failed to converge."); return null; };
+                calculateBtn.addEventListener('click', () => { const investment = -Math.abs(parseFloat(irrInputs.initialInvestment.value) || 0); const period = parseInt(irrInputs.projectionPeriod.value, 10); const exitValue = parseFloat(irrInputs.exitValue.value) || 0; let revenue = parseFloat(irrInputs.year1Revenue.value) || 0; const revGrowth = (parseFloat(irrInputs.revenueGrowth.value) || 0) / 100; let expenses = parseFloat(irrInputs.year1Expenses.value) || 0; const expGrowth = (parseFloat(irrInputs.expenseGrowth.value) || 0) / 100; const cashflows = [investment]; let tableHTML = `&lt;table class="w-full text-left"&gt;&lt;thead class="border-b border-slate-300"&gt;&lt;tr&gt;&lt;th class="py-1 px-2"&gt;Year&lt;/th&gt;&lt;th class="py-1 px-2"&gt;Revenue&lt;/th&gt;&lt;th class="py-1 px-2"&gt;Expenses&lt;/th&gt;&lt;th class="py-1 px-2 font-semibold"&gt;Net Cash Flow&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;`; for (let i = 1; i <= period; i++) { if (i > 1) { revenue *= (1 + revGrowth); expenses *= (1 + expGrowth); } let netCashFlow = revenue - expenses; if (i === period) netCashFlow += exitValue; cashflows.push(netCashFlow); tableHTML += `&lt;tr&gt;&lt;td class="py-1 px-2"&gt;${i}&lt;/td&gt;&lt;td class="py-1 px-2"&gt;${formatCurrency(revenue)}&lt;/td&gt;&lt;td class="py-1 px-2"&gt;${formatCurrency(expenses)}&lt;/td&gt;&lt;td class="py-1 px-2 font-semibold"&gt;${formatCurrency(netCashFlow)}&lt;/td&gt;&lt;/tr&gt;`; } tableHTML += `&lt;/tbody&gt;&lt;/table&gt;`; cashflowTableEl.innerHTML = tableHTML; const irr = calculateIRR(cashflows); if (irr !== null && isFinite(irr)) { irrResultEl.textContent = `${irr.toFixed(2)}%`; irrResultEl.className = 'text-3xl font-bold text-indigo-600'; } else { irrResultEl.textContent = 'N/A'; irrResultEl.className = 'text-3xl font-bold text-red-500'; } });
+            }
+
+            function setupLocationAnalysis() {
+                const cityInput = document.getElementById('location-city-input');
+                const stateInput = document.getElementById('location-state-input');
+                const zipInput = document.getElementById('location-zip-input');
+                const searchBtn = document.getElementById('location-search-btn');
+                const searchBtnText = document.getElementById('search-btn-text');
+                const searchBtnSpinner = document.getElementById('search-btn-spinner');
+                const contentContainer = document.getElementById('location-analysis-content');
+                const loadingState = document.getElementById('location-loading-state');
+                const errorState = document.getElementById('location-error-state');
+                const errorMessage = document.getElementById('location-error-message');
+                if (!cityInput || !stateInput || !zipInput || !searchBtn || !contentContainer || !loadingState || !errorState) return;
+
+                const uiElements = { title: document.getElementById('location-analysis-title'), demographicsList: document.getElementById('demographics-list'), competitionLevel: document.getElementById('competition-level'), competitorsList: document.getElementById('competitors-list'), growthOpportunityText: document.getElementById('growth-opportunity-text'), scoreText: document.getElementById('location-score-text'), scoreBar: document.getElementById('location-score-bar'), scoringBreakdownList: document.getElementById('scoring-breakdown-list'), conclusionText: document.getElementById('conclusion-text'), };
+                if (Object.values(uiElements).some(el => !el)) return;
+
+                const CLOUD_FUNCTION_URL = 'https://us-central1-gen-lang-client-0400760132.cloudfunctions.net/geminiProxy';
+
+                async function callProxyFunction(locationString) {
+                    const payloadToFunction = { location: locationString, type: 'location' };
+                    const response = await fetch(CLOUD_FUNCTION_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payloadToFunction) });
+                    if (!response.ok) { const errorText = await response.text(); console.error(`Proxy function error (${response.status}): ${errorText}`); throw new Error(`Proxy function request failed with status ${response.status}`); }
+                    const jsonText = await response.text();
+                    try { return JSON.parse(jsonText); }
+                    catch(e) { console.error("Failed to parse JSON response from proxy:", jsonText, e); throw new Error("Invalid JSON received from proxy function."); }
+                }
+
+                function updateUI(data) { /* ... (keep updateUI function as is) ... */
+                     uiElements.title.textContent = `Location Analysis: ${data.locationName || 'N/A'}`;
+                    uiElements.demographicsList.innerHTML = ` &lt;li class="flex justify-between"&gt;&lt;span&gt;Population:&lt;/span&gt; &lt;span class="font-semibold text-slate-800"&gt;${data.demographics?.population || 'N/A'}&lt;/span&gt;&lt;/li&gt; &lt;li class="flex justify-between"&gt;&lt;span&gt;Median Household Income:&lt;/span&gt; &lt;span class="font-semibold text-slate-800"&gt;${data.demographics?.medianHouseholdIncome || 'N/A'}&lt;/span&gt;&lt;/li&gt; &lt;li class="flex justify-between"&gt;&lt;span&gt;${data.demographics?.keyEthnicity?.name || 'Key Ethnicity'}:&lt;/span&gt; &lt;span class="font-semibold text-slate-800"&gt;${data.demographics?.keyEthnicity?.percentage || 'N/A'}&lt;/span&gt;&lt;/li&gt; &lt;li class="flex justify-between"&gt;&lt;span&gt;Daytime Population:&lt;/span&gt; &lt;span class="font-semibold text-slate-800"&gt;${data.demographics?.daytimePopulation || 'N/A'}&lt;/span&gt;&lt;/li&gt; `;
+                    uiElements.competitionLevel.textContent = `Competition is considered ${data.competition?.level || 'N/A'}. Key competitors include:`;
+                    uiElements.competitorsList.innerHTML = data.competition?.competitors?.map(c => `&lt;li&gt;${c}&lt;/li&gt;`).join('') || '&lt;li&gt;N/A&lt;/li&gt;';
+                    uiElements.growthOpportunityText.textContent = data.growthAndOpportunity || 'N/A';
+                    const score = parseFloat(data.overallScore || 0).toFixed(1); uiElements.scoreText.textContent = score; uiElements.scoreBar.style.width = `${Math.max(0, Math.min(100, score * 10))}%`;
+                    uiElements.scoringBreakdownList.innerHTML = data.scoringBreakdown?.map(item => { let icon = `&lt;b class="text-orange-500"&gt;~&lt;/b&gt;`; if (item.verdict === 'Positive') icon = `&lt;b class="text-green-600"&gt;✓&lt;/b&gt;`; else if (item.verdict === 'Negative') icon = `&lt;b class="text-red-600"&gt;✗&lt;/b&gt;`; return `&lt;p class="text-sm text-slate-700"&gt;${icon} ${item.point || 'N/A'}&lt;/p&gt;`; }).join('') || '&lt;p&gt;N/A&lt;/p&gt;';
+                    uiElements.conclusionText.textContent = data.conclusion || 'N/A';
+                }
+
+                async function handleSearch() {
+                    const city = cityInput.value.trim();
+                    const state = stateInput.value.trim();
+                    const zip = zipInput.value.trim();
+                    if (!city || !state) {
+                        errorMessage.textContent = 'Please enter at least a City and State.';
+                        errorState.classList.remove('hidden');
+                        contentContainer.classList.add('hidden');
+                        return;
+                    }
+                    // Construct location string - include zip if provided
+                    const locationString = `${city}, ${state}${zip ? ' ' + zip : ''}`;
+
+                    searchBtn.disabled = true;
+                    if(searchBtnText) searchBtnText.classList.add('hidden');
+                    if(searchBtnSpinner) searchBtnSpinner.classList.remove('hidden');
+                    contentContainer.classList.add('hidden');
+                    errorState.classList.add('hidden');
+                    loadingState.classList.remove('hidden');
+
+                    try {
+                        const analysisData = await callProxyFunction(locationString);
+                        updateUI(analysisData);
+                        contentContainer.classList.remove('hidden');
+                    } catch (error) {
+                        console.error("Location analysis failed:", error);
+                        errorMessage.textContent = `Could not retrieve analysis for "${locationString}". Please check function logs or try again. Details: ${error.message}`;
+                        errorState.classList.remove('hidden');
+                    } finally {
+                        searchBtn.disabled = false;
+                        if(searchBtnText) searchBtnText.classList.remove('hidden');
+                        if(searchBtnSpinner) searchBtnSpinner.classList.add('hidden');
+                        loadingState.classList.add('hidden');
+                    }
+                }
+
+                searchBtn.addEventListener('click', handleSearch);
+                // Allow enter key press in any of the three inputs to trigger search
+                [cityInput, stateInput, zipInput].forEach(input => {
+                     input.addEventListener('keypress', (e) => {
+                         if (e.key === 'Enter') handleSearch();
+                     });
+                });
+
+                // Initial load with default values (already set in HTML)
+                handleSearch(); // Run analysis for default values on load
+            }
+
+            function setupKpiDashboard() {
+                const kpiInputs = { impressions: document.getElementById('kpi-impressions'), reach: document.getElementById('kpi-reach'), clicks: document.getElementById('kpi-clicks'), engagement: document.getElementById('kpi-engagement'), spend: document.getElementById('kpi-spend'), };
+                const kpiOutputs = { engagementRate: document.getElementById('kpi-engagement-rate'), ctr: document.getElementById('kpi-ctr'), cpc: document.getElementById('kpi-cpc'), cpm: document.getElementById('kpi-cpm'), };
+                if (Object.values(kpiInputs).some(el => !el) || Object.values(kpiOutputs).some(el => !el)) return;
+                const formatCurrency = (value) => value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+                function calculateKpis() { const impressions = parseFloat(kpiInputs.impressions.value) || 0; const engagement = parseFloat(kpiInputs.engagement.value) || 0; const clicks = parseFloat(kpiInputs.clicks.value) || 0; const spend = parseFloat(kpiInputs.spend.value) || 0; const engagementRate = impressions > 0 ? (engagement / impressions) * 100 : 0; const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0; const cpc = clicks > 0 ? spend / clicks : 0; const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0; kpiOutputs.engagementRate.textContent = `${engagementRate.toFixed(2)}%`; kpiOutputs.ctr.textContent = `${ctr.toFixed(2)}%`; kpiOutputs.cpc.textContent = formatCurrency(cpc); kpiOutputs.cpm.textContent = formatCurrency(cpm); }
+                Object.values(kpiInputs).forEach(input => input.addEventListener('input', calculateKpis));
+                calculateKpis();
+            }
+            
+            function setupValuationCalculator() {
+                const printBtn = document.getElementById('print-valuation-pdf');
+                const valInputs = { locationSelector: document.getElementById('location-type-selector'), annualRevenue: document.getElementById('val-annual-revenue'), rent: document.getElementById('val-rent'), supplies: document.getElementById('val-supplies'), utilities: document.getElementById('val-utilities'), processorFee: document.getElementById('val-processor-fee'), commission: document.getElementById('val-commission'), };
+                const valOutputs = { totalValuation: document.getElementById('total-valuation'), locationBase: document.getElementById('val-location-base'), annualCashflow: document.getElementById('val-annual-cashflow'), incomeValuation: document.getElementById('val-income-valuation'), fastValuation: document.getElementById('val-fast-valuation'), };
+                if (!printBtn || Object.values(valInputs).some(el => !el) || Object.values(valOutputs).some(el => !el)) return;
+                const formatCurrency = (value) => value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+                function calculateValuation() { const locationBasePrice = parseFloat(valInputs.locationSelector.querySelector('input:checked').value); const annualRevenue = parseFloat(valInputs.annualRevenue.value) || 0; const monthlyRent = parseFloat(valInputs.rent.value) || 0; const monthlySupplies = parseFloat(valInputs.supplies.value) || 0; const monthlyUtilities = parseFloat(valInputs.utilities.value) || 0; const processorFeePercent = (parseFloat(valInputs.processorFee.value) || 0) / 100; const commissionPercent = (parseFloat(valInputs.commission.value) || 0) / 100; const annualFixedExpenses = (monthlyRent + monthlySupplies + monthlyUtilities) * 12; const annualVariableExpenses = annualRevenue * (processorFeePercent + commissionPercent); const totalAnnualExpenses = annualFixedExpenses + annualVariableExpenses; const annualCashFlow = annualRevenue - totalAnnualExpenses; const cashOnCashValuation = annualCashFlow > 0 ? (annualCashFlow / 0.85) : 0; const fastValuation = (annualRevenue / 12) * 3; const totalValuation = locationBasePrice + cashOnCashValuation; valOutputs.locationBase.textContent = formatCurrency(locationBasePrice); valOutputs.annualCashflow.textContent = formatCurrency(annualCashFlow); valOutputs.incomeValuation.textContent = formatCurrency(cashOnCashValuation); valOutputs.fastValuation.textContent = formatCurrency(fastValuation); valOutputs.totalValuation.textContent = formatCurrency(totalValuation); }
+                function generatePDF() { const { jsPDF } = window.jspdf; const doc = new jsPDF(); const today = new Date().toLocaleDateString('en-US'); const locationBasePrice = parseFloat(valInputs.locationSelector.querySelector('input:checked').value); const annualRevenue = parseFloat(valInputs.annualRevenue.value) || 0; const monthlyRent = parseFloat(valInputs.rent.value) || 0; const monthlySupplies = parseFloat(valInputs.supplies.value) || 0; const monthlyUtilities = parseFloat(valInputs.utilities.value) || 0; const processorFeePercent = parseFloat(valInputs.processorFee.value) || 0; const commissionPercent = parseFloat(valInputs.commission.value) || 0; const annualRent = monthlyRent * 12; const annualSupplies = monthlySupplies * 12; const annualUtilities = monthlyUtilities * 12; const annualProcessorFees = annualRevenue * (processorFeePercent / 100); const annualCommission = annualRevenue * (commissionPercent / 100); const annualCashFlow = parseFloat(valOutputs.annualCashflow.textContent.replace(/[^0-9.-]+/g,"")); const totalValuation = valOutputs.totalValuation.textContent; const incomeValuation = valOutputs.incomeValuation.textContent; doc.setFontSize(22); doc.text("Nail Salon Valuation Report", 105, 20, { align: 'center' }); doc.setFontSize(11); doc.setTextColor(100); doc.text(`Generated on: ${today}`, 105, 28, { align: 'center' }); doc.setFontSize(16); doc.setTextColor(0); doc.text("Valuation Summary", 14, 45); doc.setLineWidth(0.5); doc.line(14, 47, 196, 47); doc.setFontSize(12); doc.text("Total Estimated Valuation:", 14, 55); doc.setFont(undefined, 'bold'); doc.text(totalValuation, 196, 55, { align: 'right' }); doc.setFont(undefined, 'normal'); doc.text("Location Base Value:", 14, 62); doc.text(formatCurrency(locationBasePrice), 196, 62, { align: 'right' }); doc.text("Income Valuation (85% CoC):", 14, 69); doc.text(incomeValuation, 196, 69, { align: 'right' }); doc.setFontSize(16); doc.text("Key Financials", 14, 85); doc.line(14, 87, 196, 87); doc.setFontSize(12); doc.text("Annual Revenue:", 14, 95); doc.text(formatCurrency(annualRevenue), 196, 95, { align: 'right' }); doc.text("Annual Cash Flow:", 14, 102); doc.setFont(undefined, 'bold'); doc.text(formatCurrency(annualCashFlow), 196, 102, { align: 'right' }); doc.setFontSize(16); doc.setFont(undefined, 'normal'); doc.text("Annual Expense Breakdown", 14, 118); doc.line(14, 120, 196, 120); doc.setFontSize(12); doc.text(`Commission (${commissionPercent}%):`, 14, 128); doc.text(formatCurrency(annualCommission), 196, 128, { align: 'right' }); doc.text("Rent:", 14, 135); doc.text(formatCurrency(annualRent), 196, 135, { align: 'right' }); doc.text("Supplies:", 14, 142); doc.text(formatCurrency(annualSupplies), 196, 142, { align: 'right' }); doc.text("Utilities:", 14, 149); doc.text(formatCurrency(annualUtilities), 196, 149, { align: 'right' }); doc.text(`Processor Fees (${processorFeePercent}%):`, 14, 156); doc.text(formatCurrency(annualProcessorFees), 196, 156, { align: 'right' }); doc.setFontSize(10); doc.setTextColor(150); doc.text("Report generated by Business Calculators App.", 105, 280, { align: 'center' }); doc.save('Nail-Salon-Valuation-Report.pdf'); }
+                Object.values(valInputs).forEach(inputElement => inputElement.addEventListener('input', calculateValuation));
+                printBtn.addEventListener('click', generatePDF);
+                calculateValuation();
+            }
+            
+            function setupSocialMediaAssistant() {
+                const CLOUD_FUNCTION_URL = 'https://us-central1-gen-lang-client-0400760132.cloudfunctions.net/geminiProxy';
+                const socialForm = document.getElementById('social-form'); const postTopicInput = document.getElementById('social-post-topic'); const generateBtn = document.getElementById('social-generate-btn'); const btnText = document.getElementById('social-btn-text'); const btnSpinner = document.getElementById('social-btn-spinner'); const errorContainer = document.getElementById('social-error'); const resultsContainer = document.getElementById('social-results'); const captionResultContainer = document.getElementById('social-caption-result'); const captionOutput = document.getElementById('social-caption-output'); const hashtagsResultContainer = document.getElementById('social-hashtags-result'); const hashtagsOutput = document.getElementById('social-hashtags-output'); const ideasDropdownContainer = document.getElementById('social-ideas-dropdown'); const copyBtns = document.querySelectorAll('.social-copy-btn');
+                if (!socialForm || !postTopicInput || !generateBtn || !ideasDropdownContainer) return;
+                const ideasDropdown = ideasDropdownContainer.querySelector('div'); if (!ideasDropdown) return;
+                const postIdeas = ["Fresh manicure (classic)","Gel manicure (long-lasting)","Elaborate nail art design","Relaxing pedicure","Seasonal colors (e.g., fall, summer)","Spa day package","Special promotion or discount",];
+                ideasDropdown.innerHTML = ''; postIdeas.forEach(idea => { const button = document.createElement('button'); button.type = 'button'; button.className = 'block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'; button.setAttribute('role', 'menuitem'); button.textContent = idea; button.onclick = () => { postTopicInput.value = idea; document.activeElement.blur(); }; ideasDropdown.appendChild(button); });
+                socialForm.addEventListener('submit', async (e) => { e.preventDefault(); const postTopic = postTopicInput.value.trim(); if (!postTopic) { if(errorContainer){ errorContainer.textContent = "Please enter a topic."; errorContainer.classList.remove('hidden');} return; } generateBtn.disabled = true; if (btnText) btnText.classList.add('hidden'); if (btnSpinner) btnSpinner.classList.remove('hidden'); if(errorContainer) errorContainer.classList.add('hidden'); if(resultsContainer) resultsContainer.classList.add('hidden'); const payloadToFunction = { userQuery: `Generate an Instagram caption and a list of 10-15 relevant hashtags for a post about: "${postTopic}".`, type: 'social' }; try { const response = await fetch(CLOUD_FUNCTION_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payloadToFunction) }); if (!response.ok) { const errorText = await response.text(); throw new Error(`Proxy function request failed with status ${response.status}: ${errorText}`); } const jsonText = await response.text(); const parsedJson = JSON.parse(jsonText); if (captionOutput) captionOutput.textContent = parsedJson.caption || ''; if (hashtagsOutput) hashtagsOutput.textContent = parsedJson.hashtags?.join(' ') || ''; if (captionResultContainer) captionResultContainer.classList.toggle('hidden', !parsedJson.caption); if (hashtagsResultContainer) hashtagsResultContainer.classList.toggle('hidden', !parsedJson.hashtags?.length); if(resultsContainer) resultsContainer.classList.remove('hidden'); } catch (err) { console.error("Error calling proxy function:", err); if(errorContainer){ errorContainer.textContent = "Sorry, couldn't generate content. Please try again."; errorContainer.classList.remove('hidden');} } finally { generateBtn.disabled = false; if (btnText) btnText.classList.remove('hidden'); if (btnSpinner) btnSpinner.classList.add('hidden'); } });
+                copyBtns.forEach(btn => { btn.addEventListener('click', async () => { const type = btn.dataset.type; const textToCopy = (type === 'caption' && captionOutput) ? captionOutput.textContent : (hashtagsOutput ? hashtagsOutput.textContent : ''); const success = await copyToClipboard(textToCopy); if (success) { const copyText = btn.querySelector('.copy-text'); const copyIcon = btn.querySelector('.copy-icon'); const checkIcon = btn.querySelector('.check-icon'); if (copyText) copyText.textContent = 'Copied!'; if (copyIcon) copyIcon.classList.add('hidden'); if (checkIcon) checkIcon.classList.remove('hidden'); setTimeout(() => { if (copyText) copyText.textContent = 'Copy'; if (copyIcon) copyIcon.classList.remove('hidden'); if (checkIcon) checkIcon.classList.add('hidden'); }, 2000); } else { const feedback = document.createElement('span'); feedback.textContent = ' Copy Failed!'; feedback.className = 'text-red-500 text-xs ml-1'; btn.appendChild(feedback); setTimeout(() => btn.removeChild(feedback), 2000); } }); });
+            }
+
+            function setupSettings() {
+                const currentPasswordInput = document.getElementById('current-password');
+                const newPasswordInput = document.getElementById('new-password');
+                const savePasswordBtn = document.getElementById('save-password-btn');
+                const passwordSaveFeedback = document.getElementById('password-save-feedback');
+                const showHideBtn = document.getElementById('show-hide-password');
+                if (!currentPasswordInput || !newPasswordInput || !savePasswordBtn || !passwordSaveFeedback || !showHideBtn) return;
+                function loadCurrentPassword() { currentPasswordInput.value = localStorage.getItem(PASSWORD_STORAGE_KEY) || DEFAULT_PASSWORD; }
+                loadCurrentPassword(); currentPasswordInput.type = 'password'; showHideBtn.textContent = 'Show';
+                showHideBtn.addEventListener('click', () => { if (currentPasswordInput.type === 'password') { currentPasswordInput.type = 'text'; showHideBtn.textContent = 'Hide'; } else { currentPasswordInput.type = 'password'; showHideBtn.textContent = 'Show'; } });
+                savePasswordBtn.addEventListener('click', () => { const newPassword = newPasswordInput.value; if (newPassword && newPassword.length >= 3) { localStorage.setItem(PASSWORD_STORAGE_KEY, newPassword); loadCurrentPassword(); currentPasswordInput.type = 'password'; showHideBtn.textContent = 'Show'; newPasswordInput.value = ''; passwordSaveFeedback.textContent = 'Access code saved successfully!'; passwordSaveFeedback.className = 'text-sm text-green-600 text-center mt-2'; } else { passwordSaveFeedback.textContent = 'New code must be at least 3 characters long.'; passwordSaveFeedback.className = 'text-sm text-red-600 text-center mt-2'; } setTimeout(() => { passwordSaveFeedback.textContent = ''; }, 3000); });
+            }
+
+        }); // End DOMContentLoaded
+    </script>
+</body>
+</html>
