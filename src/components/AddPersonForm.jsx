@@ -4,6 +4,7 @@ import { db, storage } from '../firebase';
 import { collection, addDoc, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Save, Loader2, PlusCircle, XCircle, ImagePlus } from 'lucide-react';
+import { sanitizeFormValue } from '../utils/sanitizeFormData';
 
 const createInitialState = () => ({
   name: '',
@@ -25,7 +26,7 @@ export default function AddPersonForm({ onSaved, personToEdit }) {
 
   useEffect(() => {
     if (personToEdit) {
-      setFormData({
+      setFormData(sanitizeFormValue({
         ...createInitialState(),
         ...personToEdit,
         phones: personToEdit.phones?.length ? personToEdit.phones : [''],
@@ -33,7 +34,7 @@ export default function AddPersonForm({ onSaved, personToEdit }) {
         businesses: personToEdit.businesses?.length ? personToEdit.businesses : [''],
         partners: personToEdit.partners?.length ? personToEdit.partners : [''],
         socials: personToEdit.socials?.length ? personToEdit.socials : [{ platform: 'Facebook', url: '' }],
-      });
+      }));
       // Populate image slots
       const newImageSlots = Array(8).fill(null);
       if (personToEdit.imageUrls) {

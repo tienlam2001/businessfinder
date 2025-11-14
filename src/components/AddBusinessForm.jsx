@@ -4,6 +4,7 @@ import { db, storage } from '../firebase';
 import { collection, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Save, Loader2, PlusCircle, XCircle, ImagePlus } from 'lucide-react';
+import { sanitizeFormValue } from '../utils/sanitizeFormData';
 
 const initialOwnerState = { name: '', phones: [''] };
 const initialFinancialsState = {
@@ -95,9 +96,9 @@ export default function AddBusinessForm({ onSaved, businessToEdit }) {
       }
       setImageSlots(newImageSlots);
 
-      setFormData(sanitizedData);
+      setFormData(sanitizeFormValue(sanitizedData));
     } else {
-      setFormData(initialFormData);
+      setFormData(sanitizeFormValue(initialFormData));
       setImageSlots(Array(8).fill(null));
     }
     setImagesToDelete([]);
@@ -306,7 +307,7 @@ export default function AddBusinessForm({ onSaved, businessToEdit }) {
         await setDoc(doc(db, 'businesses', businessId), { ...dataToSave, createdAt: new Date() });
       }
       onSaved();
-      setFormData(initialFormData); // Reset form
+      setFormData(sanitizeFormValue(initialFormData)); // Reset form
     } catch (error) {
       alert("Error saving profile: " + error.message);
     }
