@@ -1,10 +1,9 @@
 // src/components/AddResidenceForm.jsx
 import { useState, useEffect } from 'react';
 import { db, storage } from '../firebase';
-import { collection, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, updateDoc, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { Save, Loader2, PlusCircle, XCircle, ImagePlus } from 'lucide-react';
-import { createDefaultBrrrInputs, mergeBrrrInputs } from '../calculations';
+import { Save, Loader2, PlusCircle, XCircle, ImagePlus } from 'lucide-react';import { createDefaultBrrrInputs, mergeBrrrInputs } from '../calculations';
 import { createDefaultFlipInputs, mergeFlipInputs } from '../flip';
 
 const DATA_SOURCE_OPTIONS = [
@@ -28,10 +27,8 @@ const createInitialState = () => ({
   propertyAddress: '',
   propertyCity: '',
   propertyState: '',
-  propertyZip: '',
-  propertyCounty: '',
-  propertyApn: '',
   yearBuilt: '',
+  propertyType: 'Single Family',
   squareFootage: '',
   beds: '',
   baths: '',
@@ -73,6 +70,10 @@ const createInitialState = () => ({
   rehabTimeline: '',
   arv: '',
   bridgeLtvPercent: '85',
+  hardMoneyLtrPercent: '100',
+  hardMoneyInterestRate: '12',
+  hardMoneyTermMonths: '6',
+  hardMoneyPaymentType: 'interestOnly',
   fundingMode: 'hardMoney',
   dscrRefiLtvPercent: '70',
   dscrRefiRatePercent: '7.25',
@@ -105,6 +106,7 @@ const createInitialState = () => ({
 export default function AddResidenceForm({ onSaved, residenceToEdit }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState(createInitialState());
+  const [activeTab, setActiveTab] = useState('property');
   const [imageSlots, setImageSlots] = useState(Array(8).fill(null));
   const [imagesToDelete, setImagesToDelete] = useState([]);
   const [customSource, setCustomSource] = useState('');
@@ -136,6 +138,36 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
     Number.isFinite(value) && value > 0
       ? `$${Math.round(value).toLocaleString()}`
       : '$0';
+  const monthlyMortgagePayment =
+    (Number(formData.dscrRefiLtvPercent) > 0 &&
+      Number(formData.dscrRefiRatePercent) > 0 &&
+      Number(formData.dscrRefiAmortYears) > 0 &&
+      Number(formData.arv) > 0)
+      ? (() => {
+          const loanAmount = (Number(formData.arv) || 0) * ((Number(formData.dscrRefiLtvPercent) || 0) / 100);
+          const monthlyRate = (Number(formData.dscrRefiRatePercent) || 0) / 100 / 12;
+          const numberOfPayments = (Number(formData.dscrRefiAmortYears) || 0) * 12;
+          if (monthlyRate === 0) return loanAmount / numberOfPayments;
+          return (loanAmount * monthlyRate * Math.pow(1 + monthlyRate, numberOfPayments)) / (Math.pow(1 + monthlyRate, numberOfPayments) - 1);
+        })()
+      : 0;
+  const monthlyNOI = blendedRent * (1 - (Number(formData.vacancyPercent) || 0) / 100) - (propertyTaxEstimate / 12) - (insuranceEstimate / 12);
+  const cashFlowAfterMortgage = monthlyNOI - monthlyMortgagePayment;
+
+  const hardMoneyLoanAmount = 
+    (Number(formData.purchasePrice) || 0) * ((Number(formData.bridgeLtvPercent) || 0) / 100) +
+    rehabBudgetEstimate * ((Number(formData.hardMoneyLtrPercent) || 0) / 100);
+
+  const hardMoneyInterestOnlyPayment = 
+    hardMoneyLoanAmount * ((Number(formData.hardMoneyInterestRate) || 0) / 100 / 12);
+
+  const hardMoneyPrincipalAndInterestPayment = (() => {
+    const monthlyRate = (Number(formData.hardMoneyInterestRate) || 0) / 100 / 12;
+    const numberOfPayments = (Number(formData.hardMoneyTermMonths) || 0);
+    if (monthlyRate === 0 || numberOfPayments === 0) return 0;
+    return (hardMoneyLoanAmount * monthlyRate * Math.pow(1 + monthlyRate, numberOfPayments)) / (Math.pow(1 + monthlyRate, numberOfPayments) - 1);
+  })();
+
 
   useEffect(() => {
     if (residenceToEdit) {
@@ -198,10 +230,9 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         owningEntityType:
           residenceToEdit.owningEntityType || base.owningEntityType,
         propertyCity: residenceToEdit.propertyCity || '',
+        propertyType: residenceToEdit.propertyType || base.propertyType,
         propertyState: residenceToEdit.propertyState || '',
         propertyZip: residenceToEdit.propertyZip || '',
-        propertyCounty: residenceToEdit.propertyCounty || '',
-        propertyApn: residenceToEdit.propertyApn || '',
         beds: legacyBeds || '',
         baths: legacyBaths || '',
         rentMonthly:
@@ -244,6 +275,21 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
             ? String(residenceToEdit.bridgeLtvPercent)
             : residenceToEdit.brrrModel?.hardMoney?.ltvPercent !== undefined
               ? String(residenceToEdit.brrrModel.hardMoney.ltvPercent)
+              : base.bridgeLtvPercent,
+        hardMoneyLtrPercent:
+          residenceToEdit.hardMoneyLtrPercent !== undefined &&
+          residenceToEdit.hardMoneyLtrPercent !== null
+            ? String(residenceToEdit.hardMoneyLtrPercent)
+            : base.hardMoneyLtrPercent,
+        hardMoneyInterestRate:
+          residenceToEdit.hardMoneyInterestRate !== undefined &&
+          residenceToEdit.hardMoneyInterestRate !== null
+            ? String(residenceToEdit.hardMoneyInterestRate)
+            : base.hardMoneyInterestRate,
+        hardMoneyTermMonths:
+          residenceToEdit.hardMoneyTermMonths !== undefined &&
+          residenceToEdit.hardMoneyTermMonths !== null
+            ? String(residenceToEdit.hardMoneyTermMonths)
               : base.bridgeLtvPercent,
         dscrRefiLtvPercent:
           residenceToEdit.dscrRefiLtvPercent !== undefined &&
@@ -598,9 +644,9 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
           arv: Number(formData.arv) || undefined,
           closingPctPurchase: closingPercent || undefined, // This seems to be missing from flip model
           holdingMonths: Number(formData.rehabTimeline) || undefined, // This seems to be missing from flip model
-          taxesAnnual: Number(formData.propertyTax) || undefined,
-          insuranceAnnual: Number(formData.insurance) || undefined,
-          utilitiesMonthly: Number(formData.holdingUtilities) || undefined,
+          taxesAnnual: Number(formData.propertyTax) || null,
+          insuranceAnnual: Number(formData.insurance) || null,
+          utilitiesMonthly: Number(formData.holdingUtilities) || null,
           otherCarryingMonthly: Number(formData.holdingLawnSnow) || undefined,
         },
       };
@@ -641,8 +687,6 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         rentRoll,
         loans,
         rehabItems,
-        propertyCity: formData.propertyCity || '',
-        propertyState: formData.propertyState || '',
         propertyZip: formData.propertyZip || '',
         propertyCounty: formData.propertyCounty || '',
         propertyApn: formData.propertyApn || '',
@@ -747,6 +791,21 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
     setLoading(false);
   };
 
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'property':
+        return renderPropertyTab();
+      case 'financials':
+        return renderFinancialsTab();
+      case 'details':
+        return renderDetailsTab();
+      case 'media':
+        return renderMediaTab();
+      default:
+        return renderPropertyTab();
+    }
+  };
+
   return (
     <div className="glass-card">
       <h2 style={{ marginTop: 0, color: 'var(--accent-cyan)' }}>{residenceToEdit ? '// EDIT RESIDENCE' : '// NEW RESIDENCE'}</h2>
@@ -800,13 +859,13 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
 
         <section style={{ marginBottom: '30px' }}>
           <h3 style={{ color: 'var(--accent-purple)', marginBottom: '15px' }}>// PROPERTY SNAPSHOT</h3>
-          <div className="input-group"><label className="input-label">Street Address</label><input className="modern-input" name="propertyAddress" value={formData.propertyAddress} required onChange={handleChange} /></div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '20px' }}>
-            <div className="input-group"><label className="input-label">City</label><input className="modern-input" name="propertyCity" value={formData.propertyCity} onChange={handleChange} /></div>
-            <div className="input-group"><label className="input-label">State</label><input className="modern-input" name="propertyState" value={formData.propertyState} onChange={handleChange} /></div>
-            <div className="input-group"><label className="input-label">ZIP</label><input className="modern-input" name="propertyZip" value={formData.propertyZip} onChange={handleChange} /></div>
-            <div className="input-group"><label className="input-label">County</label><input className="modern-input" name="propertyCounty" value={formData.propertyCounty} onChange={handleChange} /></div>
-            <div className="input-group"><label className="input-label">APN</label><input className="modern-input" name="propertyApn" value={formData.propertyApn} onChange={handleChange} /></div>
+          <div className="input-group"><label className="input-label">Property Address</label><input className="modern-input" name="propertyAddress" value={formData.propertyAddress} required onChange={handleChange} placeholder="123 Main St, Anytown, USA 12345" /></div>
+          <div className="input-group">
+            <label className="input-label">Property Type</label>
+            <select className="modern-input" name="propertyType" value={formData.propertyType} onChange={handleChange}>
+              <option value="Single Family">Single Family</option>
+              <option value="Multi-family">Multi-family</option>
+            </select>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: '20px' }}>
             <div className="input-group"><label className="input-label">Year Built</label><input className="modern-input" type="number" name="yearBuilt" value={formData.yearBuilt} onChange={handleChange} /></div>
@@ -822,15 +881,9 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
 
         <section style={{ marginBottom: '30px' }}>
           <h3 style={{ color: 'var(--accent-green)', marginBottom: '15px' }}>// ACQUISITION HISTORY</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '20px' }}>
-            <div className="input-group"><label className="input-label">Date Purchased</label><input className="modern-input" type="date" name="datePurchased" value={formData.datePurchased} onChange={handleChange} /></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '20px' }}>
             <div className="input-group"><label className="input-label">Last Sale Price ($)</label><input className="modern-input" type="number" name="lastSalePrice" value={formData.lastSalePrice} onChange={handleChange} /></div>
             <div className="input-group"><label className="input-label">Last Sale Date</label><input className="modern-input" type="date" name="lastSaleDate" value={formData.lastSaleDate} onChange={handleChange} /></div>
-            <div className="input-group"><label className="input-label">Recorded Closing Costs ($)</label><input className="modern-input" type="number" name="closingCosts" value={formData.closingCosts} onChange={handleChange} /></div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '20px' }}>
-            <div className="input-group"><label className="input-label">Seller / Transfer</label><input className="modern-input" name="sellerName" value={formData.sellerName} onChange={handleChange} /></div>
-            <div className="input-group"><label className="input-label">Recorded Deed Link</label><input className="modern-input" type="url" name="recordedDeedLink" value={formData.recordedDeedLink} onChange={handleChange} placeholder="https://..." /></div>
           </div>
         </section>
 
@@ -862,6 +915,7 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
             <div style={{ padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)' }}><span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>Estimated Rehab</span><strong>{formatCurrency(rehabBudgetEstimate)}</strong></div>
             <div style={{ padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)' }}><span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>Blended Rent</span><strong>{formatCurrency(blendedRent)}</strong></div>
             <div style={{ padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)' }}><span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>Holding (monthly)</span><strong>{formatCurrency((Number(formData.purchasePrice) || 0) * ((Number(formData.holdingPercent) || 0) / 100))}</strong></div>
+            <div style={{ padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)' }}><span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>Cash Flow (monthly)</span><strong>{formatCurrency(cashFlowAfterMortgage)}</strong></div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '20px' }}>
             <div className="input-group"><label className="input-label">Purchase Price ($)</label><input className="modern-input" type="number" name="purchasePrice" value={formData.purchasePrice} onChange={handleChange} /></div>
@@ -966,59 +1020,75 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         <button type="button" onClick={addRehabItem} className="btn-modern-subtle" style={{ marginBottom: '20px' }}><PlusCircle size={16} /> Add Rehab Item</button>
 
         <hr style={{ borderColor: 'var(--glass-border)', margin: '30px 0', opacity: 0.3 }} />
-        <h3 style={{ color: 'var(--accent-green)' }}>// RENT ROLL</h3>
-        {formData.rentRoll.map((unit, index) => (
-          <div key={index} className="owner-group" style={{ border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '15px', marginBottom: '10px', position: 'relative' }}>
-            {formData.rentRoll.length > 1 && (
-              <XCircle
-                color="#f87171"
-                size={20}
-                style={{ position: 'absolute', top: '10px', right: '10px', cursor: 'pointer' }}
-                onClick={() => removeRentRollUnit(index)}
-              />
-            )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-              <div className="input-group">
-                <label className="input-label">Unit / Space</label>
-                <input
-                  className="modern-input"
-                  value={unit.label}
-                  onChange={(e) => handleRentRollChange(index, 'label', e.target.value)}
-                />
+        <h3 style={{ color: 'var(--accent-green)' }}>// RENT</h3>
+        {formData.propertyType === 'Multi-family' ? (
+          <>
+            <h4>Rent Roll</h4>
+            {formData.rentRoll.map((unit, index) => (
+              <div key={index} className="owner-group" style={{ border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '15px', marginBottom: '10px', position: 'relative' }}>
+                {formData.rentRoll.length > 1 && (
+                  <XCircle
+                    color="#f87171"
+                    size={20}
+                    style={{ position: 'absolute', top: '10px', right: '10px', cursor: 'pointer' }}
+                    onClick={() => removeRentRollUnit(index)}
+                  />
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div className="input-group">
+                    <label className="input-label">Unit / Space</label>
+                    <input
+                      className="modern-input"
+                      value={unit.label}
+                      onChange={(e) => handleRentRollChange(index, 'label', e.target.value)}
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label className="input-label">Rent ($/month)</label>
+                    <input
+                      className="modern-input"
+                      type="number"
+                      value={unit.rent}
+                      onChange={(e) => handleRentRollChange(index, 'rent', e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="input-group">
-                <label className="input-label">Rent ($/month)</label>
-                <input
-                  className="modern-input"
-                  type="number"
-                  value={unit.rent}
-                  onChange={(e) => handleRentRollChange(index, 'rent', e.target.value)}
-                />
-              </div>
+            ))}
+            <button type="button" className="btn-modern-subtle" onClick={addRentRollUnit} style={{ marginBottom: '20px' }}>
+              <PlusCircle size={16} /> Add Unit
+            </button>
+            <div className="input-group">
+              <label className="input-label">Total Monthly Rent (from Roll)</label>
+              <input className="modern-input" value={rentRollTotal} readOnly />
             </div>
-          </div>
-        ))}
-        <button type="button" className="btn-modern-subtle" onClick={addRentRollUnit} style={{ marginBottom: '20px' }}>
-          <PlusCircle size={16} /> Add Unit
-        </button>
-        <div className="input-group">
-          <label className="input-label">Market Rent (auto)</label>
-          <input className="modern-input" value={rentRollTotal} readOnly />
-        </div>
+          </>
+        ) : (
+          <div className="input-group"><label className="input-label">Market Rent ($/mo)</label><input className="modern-input" type="number" name="rentMonthly" value={formData.rentMonthly} onChange={handleChange} /></div>
+        )}
 
         {/* Loan Info */}
-        <h3 style={{ color: 'var(--accent-purple)' }}>// CAPITAL STACK</h3>
-        {formData.loans.map((loan, index) => (
-          <div key={index} className="owner-group" style={{ border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '15px', marginBottom: '20px', position: 'relative' }}>
-            {formData.loans.length > 1 && <XCircle color="#f87171" size={20} style={{ position: 'absolute', top: '10px', right: '10px', cursor: 'pointer' }} onClick={() => removeLoan(index)} />}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
-              <div className="input-group"><label className="input-label">Loan Amount ($)</label><input className="modern-input" type="number" name="loanAmount" value={loan.loanAmount} onChange={(e) => handleLoanChange(index, e)} /></div>
-              <div className="input-group"><label className="input-label">Interest Rate (%)</label><input className="modern-input" type="number" name="interestRate" value={loan.interestRate} onChange={(e) => handleLoanChange(index, e)} /></div>
-              <div className="input-group"><label className="input-label">Term (years)</label><input className="modern-input" type="number" name="term" value={loan.term} onChange={(e) => handleLoanChange(index, e)} /></div>
+        <h3 style={{ color: 'var(--accent-purple)' }}>// HARD MONEY LOAN</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '20px', marginBottom: '20px' }}>
+          <div className="input-group"><label className="input-label">Loan to Value (LTV) %</label><input className="modern-input" type="number" step="1" name="bridgeLtvPercent" value={formData.bridgeLtvPercent} onChange={handleChange} /></div>
+          <div className="input-group"><label className="input-label">Loan to Rehab (LTR) %</label><input className="modern-input" type="number" step="1" name="hardMoneyLtrPercent" value={formData.hardMoneyLtrPercent} onChange={handleChange} /></div>
+          <div className="input-group"><label className="input-label">Interest Rate %</label><input className="modern-input" type="number" step="0.1" name="hardMoneyInterestRate" value={formData.hardMoneyInterestRate} onChange={handleChange} /></div>
+          <div className="input-group"><label className="input-label">Term (months)</label><input className="modern-input" type="number" name="hardMoneyTermMonths" value={formData.hardMoneyTermMonths} onChange={handleChange} /></div>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginBottom: '20px' }}>
+            <div style={{ padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)' }}>
+              <span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>Est. Loan Amount</span>
+              <strong>{formatCurrency(hardMoneyLoanAmount)}</strong>
             </div>
-          </div>
-        ))}
-        <button type="button" onClick={addLoan} className="btn-modern-subtle" style={{ marginBottom: '20px' }}><PlusCircle size={16} /> Add Loan</button>
+            <div style={{ padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)' }}>
+              <span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>Interest-Only Payment</span>
+              <strong>{formatCurrency(hardMoneyInterestOnlyPayment)} / mo</strong>
+            </div>
+            <div style={{ padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)' }}>
+              <span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>P&I Payment</span>
+              <strong>{formatCurrency(hardMoneyPrincipalAndInterestPayment)} / mo</strong>
+            </div>
+        </div>
 
         <hr style={{ borderColor: 'var(--glass-border)', margin: '30px 0', opacity: 0.3 }} />
 
@@ -1050,3 +1120,198 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
     </div>
   );
 }
+
+function Tab({ label, isActive, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: '10px 20px',
+        border: 'none',
+        borderBottom: `2px solid ${isActive ? 'var(--accent-cyan)' : 'transparent'}`,
+        background: 'transparent',
+        color: isActive ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+        cursor: 'pointer',
+        fontSize: '1rem',
+        transition: 'all 0.2s ease-in-out',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+const AddResidenceFormOptimized = ({ onSaved, residenceToEdit }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState(createInitialState());
+  const [activeTab, setActiveTab] = useState('property');
+
+  useEffect(() => {
+    if (residenceToEdit) {
+      // A simplified version of the original useEffect logic
+      // In a real-world scenario, you'd still need the full mapping logic,
+      // but it would be cleaner to manage.
+      const base = createInitialState();
+      const mergedData = { ...base, ...residenceToEdit };
+      // Simplified for brevity. The original complex merge logic is still needed
+      // but this structure is easier to manage.
+      setFormData(mergedData);
+    } else {
+      setFormData(createInitialState());
+    }
+  }, [residenceToEdit]);
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    // The original handleSubmit logic was very large.
+    // It should be broken down into smaller utility functions.
+    // e.g., prepareDataForSave(formData), uploadImages(images), etc.
+    console.log("Submitting form data:", formData);
+    try {
+      // Placeholder for the complex save logic from the original component
+      const residenceId = residenceToEdit ? residenceToEdit.id : doc(collection(db, 'residences')).id;
+      const dataToSave = { ...formData, updatedAt: serverTimestamp() };
+
+      if (residenceToEdit) {
+        await updateDoc(doc(db, 'residences', residenceId), dataToSave);
+      } else {
+        dataToSave.createdAt = serverTimestamp();
+        await setDoc(doc(db, 'residences', residenceId), dataToSave);
+      }
+      
+      console.log("Save successful!");
+      onSaved();
+    } catch (error) {
+      console.error("Error saving residence:", error);
+      alert('Error saving residence: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderPropertySection = () => (
+    <section>
+      <h3 style={{ color: 'var(--accent-purple)' }}>// PROPERTY SNAPSHOT</h3>
+      <div className="input-group"><label className="input-label">Property Address</label><input className="modern-input" name="propertyAddress" value={formData.propertyAddress} required onChange={handleChange} placeholder="123 Main St, Anytown, USA 12345" /></div>
+       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: '20px' }}>
+        <div className="input-group"><label className="input-label">Beds</label><input className="modern-input" name="beds" value={formData.beds} onChange={handleChange} /></div>
+        <div className="input-group"><label className="input-label">Baths</label><input className="modern-input" name="baths" value={formData.baths} onChange={handleChange} /></div>
+        <div className="input-group"><label className="input-label">Square Footage</label><input className="modern-input" type="number" name="squareFootage" value={formData.squareFootage} onChange={handleChange} /></div>
+      </div>
+    </section>
+  );
+
+  const renderFinancialsSection = () => {
+      const rehabBudgetEstimate =
+    formData.rehabBudgetMode === 'percent'
+      ? (Number(formData.purchasePrice) || 0) *
+        ((Number(formData.rehabBudgetPercent) || 0) / 100)
+      : Number(formData.rehabBudgetAbsolute) || 0;
+
+      const formatCurrency = (value) =>
+    Number.isFinite(value) && value > 0
+      ? `$${Math.round(value).toLocaleString()}`
+      : '$0';
+
+    return (
+    <section>
+      <h3 style={{ color: 'var(--accent-cyan)' }}>// FINANCIALS</h3>
+       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '20px' }}>
+        <div className="input-group"><label className="input-label">Purchase Price ($)</label><input className="modern-input" type="number" name="purchasePrice" value={formData.purchasePrice} onChange={handleChange} /></div>
+        <div className="input-group"><label className="input-label">After Repair Value ($)</label><input className="modern-input" type="number" name="arv" value={formData.arv} onChange={handleChange} /></div>
+      </div>
+       <div className="input-group">
+        <label className="input-label">Rehab Budget</label>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+            <button type="button" onClick={() => setFormData(p => ({...p, rehabBudgetMode: 'percent'}))} className={`btn-toggle ${formData.rehabBudgetMode === 'percent' ? 'active' : ''}`}>% of Purchase</button>
+            <button type="button" onClick={() => setFormData(p => ({...p, rehabBudgetMode: 'dollar'}))} className={`btn-toggle ${formData.rehabBudgetMode === 'dollar' ? 'active' : ''}`}>$ Amount</button>
+        </div>
+        {formData.rehabBudgetMode === 'percent' ? (
+          <input className="modern-input" type="number" step="0.1" name="rehabBudgetPercent" value={formData.rehabBudgetPercent} onChange={handleChange} placeholder="Percent of purchase" />
+        ) : (
+          <input className="modern-input" type="number" name="rehabBudgetAbsolute" value={formData.rehabBudgetAbsolute} onChange={handleChange} placeholder="Total rehab dollars" />
+        )}
+        <small style={{ color: 'var(--text-secondary)', marginTop: '5px', display: 'block' }}>Est. Rehab Budget: {formatCurrency(rehabBudgetEstimate)}</small>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '20px' }}>
+        <div className="input-group"><label className="input-label">Market Rent ($/mo)</label><input className="modern-input" type="number" name="rentMonthly" value={formData.rentMonthly} onChange={handleChange} /></div>
+        <div className="input-group"><label className="input-label">Property Tax ($/yr)</label><input className="modern-input" type="number" name="propertyTax" value={formData.propertyTax} onChange={handleChange} /></div>
+        <div className="input-group"><label className="input-label">Insurance ($/yr)</label><input className="modern-input" type="number" name="insurance" value={formData.insurance} onChange={handleChange} /></div>
+      </div>
+    </section>
+  )};
+
+  const renderDetailsSection = () => (
+    <section>
+        <h3 style={{ color: 'var(--accent-green)' }}>// OWNER & DEAL</h3>
+        <div className="input-group"><label className="input-label">Owner / Entity</label><input className="modern-input" name="ownerName" value={formData.ownerName} onChange={handleChange} placeholder="Jane Investor / Oak Holdings LLC" /></div>
+        <div className="input-group"><label className="input-label">Owner Phone</label><input className="modern-input" name="ownerPhone" value={formData.ownerPhone} onChange={handleChange} placeholder="(555) 123-4567" /></div>
+        <div className="input-group"><label className="input-label">Owner Email</label><input className="modern-input" type="email" name="ownerEmail" value={formData.ownerEmail} onChange={handleChange} placeholder="owner@email.com" /></div>
+        <div className="input-group"><label className="input-label">Working Notes</label><textarea className="modern-input" rows="3" name="notes" value={formData.notes} onChange={handleChange} /></div>
+    </section>
+  );
+
+  const renderMediaSection = () => (
+      // This is a placeholder for the original complex image upload logic
+    <section>
+        <h3 style={{ color: 'var(--accent-purple)' }}>// IMAGES (UP TO 8)</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px' }}>
+            {Array(8).fill(null).map((_, index) => (
+                <div key={index} className="image-slot">
+                    <label className="upload-label">
+                        <ImagePlus size={30} />
+                        <span>Add Image</span>
+                        <input type="file" accept="image/*" multiple onChange={() => {}} />
+                    </label>
+                </div>
+            ))}
+        </div>
+    </section>
+  );
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'property':
+        return renderPropertySection();
+      case 'financials':
+        return renderFinancialsSection();
+      case 'details':
+        return renderDetailsSection();
+      case 'media':
+        return renderMediaSection();
+      default:
+        return renderPropertySection();
+    }
+  };
+
+  return (
+    <div className="glass-card">
+      <h2 style={{ marginTop: 0, color: 'var(--accent-cyan)' }}>
+        {residenceToEdit ? '// EDIT RESIDENCE' : '// NEW RESIDENCE'}
+      </h2>
+      <form onSubmit={handleSubmit}>
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--glass-border)', marginBottom: '20px' }}>
+          <Tab label="Property" isActive={activeTab === 'property'} onClick={() => setActiveTab('property')} />
+          <Tab label="Financials" isActive={activeTab === 'financials'} onClick={() => setActiveTab('financials')} />
+          <Tab label="Details" isActive={active.Tab === 'details'} onClick={() => setActiveTab('details')} />
+          <Tab label="Media" isActive={activeTab === 'media'} onClick={() => setActiveTab('media')} />
+        </div>
+
+        <div className="tab-content" style={{ minHeight: '400px' }}>
+          {renderTabContent()}
+        </div>
+
+        <button type="submit" className="btn-modern" disabled={loading} style={{ width: '100%', marginTop: '30px', fontSize: '1.1rem' }}>
+          {loading ? <Loader2 className="animate-spin" /> : <><Save size={20} /> {residenceToEdit ? 'UPDATE RESIDENCE' : 'SAVE RESIDENCE'}</>}
+        </button>
+      </form>
+    </div>
+  );
+};
