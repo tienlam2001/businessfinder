@@ -85,8 +85,12 @@ const createInitialState = () => ({
   otherIncomeMonthly: '',
   vacancyPercent: '6',
   opExPercent: '',
-  propertyTax: '',
-  insurance: '',
+  propertyTaxMode: 'dollar',
+  propertyTaxPercent: '1.25',
+  propertyTax: '', // This will hold the absolute dollar amount
+  insuranceMode: 'dollar',
+  insurancePercent: '0.75',
+  insurance: '', // This will hold the absolute dollar amount
   holdingUtilities: '',
   holdingLawnSnow: '',
   holdingInsurance: '',
@@ -118,6 +122,16 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
       ? (Number(formData.purchasePrice) || 0) *
         ((Number(formData.rehabBudgetPercent) || 0) / 100)
       : Number(formData.rehabBudgetAbsolute) || 0;
+  const propertyTaxEstimate =
+    formData.propertyTaxMode === 'percent'
+      ? (Number(formData.purchasePrice) || 0) *
+        ((Number(formData.propertyTaxPercent) || 0) / 100)
+      : Number(formData.propertyTax) || 0;
+  const insuranceEstimate =
+    formData.insuranceMode === 'percent'
+      ? (Number(formData.purchasePrice) || 0) *
+        ((Number(formData.insurancePercent) || 0) / 100)
+      : Number(formData.insurance) || 0;
   const formatCurrency = (value) =>
     Number.isFinite(value) && value > 0
       ? `$${Math.round(value).toLocaleString()}`
@@ -408,6 +422,20 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
     }));
   };
 
+  const handleCostModeChange = (field, mode) => {
+    setFormData((prev) => ({
+      ...prev,
+      [`${field}Mode`]: mode,
+    }));
+  };
+
+  const handlePercentInputChange = (e) => {
+    const { name, value } = e.target;
+    if (/Percent$/.test(name) && (Number(value) < 0 || Number(value) > 100)) {
+      return; // Prevent values outside 0-100 for percentage fields
+    }
+    handleChange(e);
+  };
   const handleImageChange = (index, e) => {
     const files = e.target.files;
     if (files.length > 0) {
@@ -473,6 +501,15 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         formData.opExPercent !== ''
           ? Number(formData.opExPercent) || null
           : null;
+      const finalPropertyTax =
+        formData.propertyTaxMode === 'percent'
+          ? purchasePrice * ((Number(formData.propertyTaxPercent) || 0) / 100)
+          : Number(formData.propertyTax) || null;
+
+      const finalInsurance =
+        formData.insuranceMode === 'percent'
+          ? purchasePrice * ((Number(formData.insurancePercent) || 0) / 100)
+          : Number(formData.insurance) || null;
       const rentRoll = formData.rentRoll
         .map((unit) => ({
           label: unit.label,
@@ -508,14 +545,14 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
           purchaseClosingFixed: inspectionFixed || undefined,
           rehabDurationMonths: Number(formData.rehabTimeline) || undefined,
           holdingCosts: {
-            taxes: (Number(formData.propertyTax) || 0) / 12,
-            insurance: (Number(formData.insurance) || 0) / 12,
+            taxes: (finalPropertyTax || 0) / 12,
+            insurance: (finalInsurance || 0) / 12,
             utilities: holdingMonthly || Number(formData.holdingUtilities) || 0,
             hoa: 0,
           },
           marketRent: combinedRent || undefined,
           vacancyPercent: vacancyPercent ?? undefined,
-          expenseRatioPercent: opExPercent,
+          expenseRatioPercent: opExPercent ?? undefined,
           annualPropertyTax: Number(formData.propertyTax) || undefined,
           annualInsurance: Number(formData.insurance) || undefined,
         },
@@ -559,8 +596,8 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         shared: {
           purchasePrice,
           arv: Number(formData.arv) || undefined,
-          closingPctPurchase: closingPercent || undefined,
-          holdingMonths: Number(formData.rehabTimeline) || undefined,
+          closingPctPurchase: closingPercent || undefined, // This seems to be missing from flip model
+          holdingMonths: Number(formData.rehabTimeline) || undefined, // This seems to be missing from flip model
           taxesAnnual: Number(formData.propertyTax) || undefined,
           insuranceAnnual: Number(formData.insurance) || undefined,
           utilitiesMonthly: Number(formData.holdingUtilities) || undefined,
@@ -597,8 +634,8 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         holdingInsurance: Number(formData.holdingInsurance) || null,
         yearBuilt: Number(formData.yearBuilt) || null,
         squareFootage: Number(formData.squareFootage) || null,
-        propertyTax: Number(formData.propertyTax) || null,
-        insurance: Number(formData.insurance) || null,
+        propertyTax: finalPropertyTax,
+        insurance: finalInsurance,
         projectStrategy: formData.projectStrategy || 'BRRR',
         marketRent: combinedRent,
         rentRoll,
@@ -842,7 +879,7 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
             ) : (
               <input className="modern-input" type="number" name="rehabBudgetAbsolute" value={formData.rehabBudgetAbsolute} onChange={handleChange} placeholder="Total rehab dollars" />
             )}
-            <small style={{ color: 'var(--text-secondary)' }}>Est. Rehab Budget {formatCurrency(rehabBudgetEstimate)}</small>
+            <small style={{ color: 'var(--text-secondary)', marginTop: '5px', display: 'block' }}>Est. Rehab Budget: {formatCurrency(rehabBudgetEstimate)}</small>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '20px' }}>
             <div className="input-group"><label className="input-label">Closing Costs %</label><input className="modern-input" type="number" step="0.1" name="closingCostsPercent" value={formData.closingCostsPercent} onChange={handleChange} /></div>
@@ -850,8 +887,32 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
             <div className="input-group"><label className="input-label">Holding Monthly %</label><input className="modern-input" type="number" step="0.1" name="holdingPercent" value={formData.holdingPercent} onChange={handleChange} /></div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '20px' }}>
-            <div className="input-group"><label className="input-label">Taxes / Year ($)</label><input className="modern-input" type="number" name="propertyTax" value={formData.propertyTax} onChange={handleChange} /></div>
-            <div className="input-group"><label className="input-label">Insurance / Year ($)</label><input className="modern-input" type="number" name="insurance" value={formData.insurance} onChange={handleChange} /></div>
+            <div className="input-group">
+              <label className="input-label">Property Tax Entry</label>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                <button type="button" onClick={() => handleCostModeChange('propertyTax', 'percent')} style={{ padding: '6px 14px', borderRadius: '999px', border: '1px solid var(--glass-border)', background: formData.propertyTaxMode === 'percent' ? 'var(--accent-green)' : 'transparent', color: formData.propertyTaxMode === 'percent' ? '#0b1120' : 'var(--text-primary)' }}>% of Purchase</button>
+                <button type="button" onClick={() => handleCostModeChange('propertyTax', 'dollar')} style={{ padding: '6px 14px', borderRadius: '999px', border: '1px solid var(--glass-border)', background: formData.propertyTaxMode === 'dollar' ? 'var(--accent-green)' : 'transparent', color: formData.propertyTaxMode === 'dollar' ? '#0b1120' : 'var(--text-primary)' }}>$ Amount</button>
+              </div>
+              {formData.propertyTaxMode === 'percent' ? (
+                <input className="modern-input" type="number" step="0.01" name="propertyTaxPercent" value={formData.propertyTaxPercent} onChange={handlePercentInputChange} placeholder="Tax rate %" />
+              ) : (
+                <input className="modern-input" type="number" name="propertyTax" value={formData.propertyTax} onChange={handleChange} placeholder="Total tax dollars / year" />
+              )}
+              <small style={{ color: 'var(--text-secondary)', marginTop: '5px', display: 'block' }}>Est. Annual Tax: {formatCurrency(propertyTaxEstimate)}</small>
+            </div>
+            <div className="input-group">
+              <label className="input-label">Insurance Entry</label>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                <button type="button" onClick={() => handleCostModeChange('insurance', 'percent')} style={{ padding: '6px 14px', borderRadius: '999px', border: '1px solid var(--glass-border)', background: formData.insuranceMode === 'percent' ? 'var(--accent-green)' : 'transparent', color: formData.insuranceMode === 'percent' ? '#0b1120' : 'var(--text-primary)' }}>% of Purchase</button>
+                <button type="button" onClick={() => handleCostModeChange('insurance', 'dollar')} style={{ padding: '6px 14px', borderRadius: '999px', border: '1px solid var(--glass-border)', background: formData.insuranceMode === 'dollar' ? 'var(--accent-green)' : 'transparent', color: formData.insuranceMode === 'dollar' ? '#0b1120' : 'var(--text-primary)' }}>$ Amount</button>
+              </div>
+              {formData.insuranceMode === 'percent' ? (
+                <input className="modern-input" type="number" step="0.01" name="insurancePercent" value={formData.insurancePercent} onChange={handlePercentInputChange} placeholder="Insurance rate %" />
+              ) : (
+                <input className="modern-input" type="number" name="insurance" value={formData.insurance} onChange={handleChange} placeholder="Total insurance dollars / year" />
+              )}
+              <small style={{ color: 'var(--text-secondary)', marginTop: '5px', display: 'block' }}>Est. Annual Insurance: {formatCurrency(insuranceEstimate)}</small>
+            </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '20px' }}>
             <div className="input-group"><label className="input-label">Market Rent ($/mo)</label><input className="modern-input" type="number" name="rentMonthly" value={formData.rentMonthly} onChange={handleChange} /></div>
