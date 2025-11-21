@@ -116,10 +116,25 @@ export default function AddBusinessForm({ onSaved, businessToEdit }) {
     setFormData({ ...formData, owners: newOwners });
   };
 
+  const formatPhoneNumber = (value) => {
+    if (!value) return value;
+    const phoneNumber = value.replace(/[^\d]/g, '');
+    const phoneNumberLength = phoneNumber.length;
+    if (phoneNumberLength < 4) return phoneNumber;
+    if (phoneNumberLength < 7) {
+      return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
+    }
+    return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(
+      3,
+      6,
+    )}-${phoneNumber.slice(6, 10)}`;
+  };
+
   const handlePhoneChange = (ownerIndex, phoneIndex, e) => {
     const { value } = e.target;
+    const formattedValue = formatPhoneNumber(value);
     const newOwners = [...formData.owners];
-    newOwners[ownerIndex].phones[phoneIndex] = value;
+    newOwners[ownerIndex].phones[phoneIndex] = formattedValue;
     setFormData({ ...formData, owners: newOwners });
   };
 
