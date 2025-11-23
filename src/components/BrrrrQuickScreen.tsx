@@ -92,11 +92,11 @@ function calculateQuickScreen(inputs: QuickScreenInputs): QuickScreenResult {
   const noi =
     inputs.rent * 12 * 0.95 -
     (inputs.taxes + inputs.insurance + inputs.hoa * 12 + inputs.rent * 12 * 0.35);
-  const refiLoan = inputs.arv * 0.75;
+  const refiLoan = inputs.arv * 0.75; // LTV-based loan
   const monthlyMortgagePayment = calculateMortgagePayment(refiLoan, DSCR_RATE, DSCR_TERM_YEARS);
   const dscr = monthlyMortgagePayment > 0 ? noi / (monthlyMortgagePayment * 12) : 0;
   const cashLeftIn = allIn - refiLoan;
-  const cashflow = inputs.rent * 0.65 - monthlyMortgagePayment;
+  const cashflow = noi / 12 - monthlyMortgagePayment;
 
   return {
     hmLoan: loanBase,
@@ -467,7 +467,7 @@ export default function BrrrrQuickScreen() {
               <StatCard
                 title="Estimated Cashflow"
                 value={formatCurrency(result.cashflow)}
-                note={`Rent net ${formatCurrency(inputs.rent * 0.65)} - Mortgage ${formatCurrency(result.mortgagePayment)}`}
+                note={`NOI ${formatCurrency(result.noi / 12)}/mo - Mortgage ${formatCurrency(result.mortgagePayment)}`}
                 tone={result.cashflow < 150 ? 'warn' : 'good'}
               />
             </div>

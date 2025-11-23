@@ -59,8 +59,14 @@ const createInitialState = () => ({
   // Financial inputs
   purchasePrice: '',
   closingCosts: '',
+  closingCostsMode: 'percent',
   closingCostsPercent: '2',
-  inspectionPercent: '1',
+  closingCostsAbsolute: '',
+  inspectionCostMode: 'percent',
+  inspectionCostPercent: '1',
+  inspectionCostAbsolute: '',
+  appraisalCostMode: 'dollar',
+  appraisalCostAbsolute: '600',
   holdingPercent: '0.5',
   rehabBudgetMode: 'percent',
   rehabBudgetPercent: '15',
@@ -198,8 +204,8 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         residenceToEdit.brrrModel?.shared?.purchaseClosingPercent ??
         base.closingCostsPercent;
       const inspectionPct =
-        residenceToEdit.inspectionPercent ??
-        base.inspectionPercent;
+        residenceToEdit.inspectionCostPercent ??
+        base.inspectionCostPercent;
       const holdingPct =
         residenceToEdit.holdingPercent ??
         base.holdingPercent;
@@ -253,7 +259,7 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
           closingPct !== undefined && closingPct !== null
             ? String(closingPct)
             : base.closingCostsPercent,
-        inspectionPercent:
+        inspectionCostPercent:
           inspectionPct !== undefined && inspectionPct !== null
             ? String(inspectionPct)
             : base.inspectionPercent,
@@ -355,6 +361,16 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
     }
     if (name === 'ownerEmail') {
       setFormData({ ...formData, ownerEmail: value, email: value });
+      return;
+    }
+    if (type === 'number') {
+      // For number inputs, parse the value to remove leading zeros (e.g., "04" becomes "4")
+      // but allow empty strings and partial numbers like "1."
+      if (value === '' || value.endsWith('.')) {
+        setFormData({ ...formData, [name]: value });
+      } else {
+        setFormData({ ...formData, [name]: String(Number(value)) });
+      }
       return;
     }
     setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
@@ -527,7 +543,7 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
           ? purchasePrice * ((Number(formData.rehabBudgetPercent) || 0) / 100)
           : Number(formData.rehabBudgetAbsolute) || 0;
       const closingPercent = Number(formData.closingCostsPercent) || 0;
-      const inspectionPercent = Number(formData.inspectionPercent) || 0;
+      const inspectionPercent = Number(formData.inspectionCostPercent) || 0;
       const holdingPercent = Number(formData.holdingPercent) || 0;
       const inspectionFixed = purchasePrice * (inspectionPercent / 100);
       const holdingMonthly = purchasePrice * (holdingPercent / 100);
@@ -656,7 +672,7 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
         propertyAddress: formattedAddress || formData.propertyAddress,
         purchasePrice: purchasePrice || null,
         closingCosts: Number(formData.closingCosts) || null,
-        closingCostsPercent: closingPercent || null,
+        closingCostsPercent: Number(formData.closingCostsPercent) || null,
         inspectionPercent: inspectionPercent || null,
         holdingPercent: holdingPercent || null,
         rehabBudgetQuick: rehabFromToggle || null,
@@ -936,9 +952,39 @@ export default function AddResidenceForm({ onSaved, residenceToEdit }) {
             <small style={{ color: 'var(--text-secondary)', marginTop: '5px', display: 'block' }}>Est. Rehab Budget: {formatCurrency(rehabBudgetEstimate)}</small>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '20px' }}>
-            <div className="input-group"><label className="input-label">Closing Costs %</label><input className="modern-input" type="number" step="0.1" name="closingCostsPercent" value={formData.closingCostsPercent} onChange={handleChange} /></div>
-            <div className="input-group"><label className="input-label">Inspection / Misc %</label><input className="modern-input" type="number" step="0.1" name="inspectionPercent" value={formData.inspectionPercent} onChange={handleChange} /></div>
-            <div className="input-group"><label className="input-label">Holding Monthly %</label><input className="modern-input" type="number" step="0.1" name="holdingPercent" value={formData.holdingPercent} onChange={handleChange} /></div>
+            <div className="input-group">
+              <label className="input-label">Closing Costs</label>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                <button type="button" onClick={() => handleCostModeChange('closingCosts', 'percent')} className={`btn-toggle ${formData.closingCostsMode === 'percent' ? 'active' : ''}`}>%</button>
+                <button type="button" onClick={() => handleCostModeChange('closingCosts', 'dollar')} className={`btn-toggle ${formData.closingCostsMode === 'dollar' ? 'active' : ''}`}>$</button>
+              </div>
+              {formData.closingCostsMode === 'percent' ? (
+                <input className="modern-input" type="number" step="0.1" name="closingCostsPercent" value={formData.closingCostsPercent} onChange={handleChange} />
+              ) : (
+                <input className="modern-input" type="number" name="closingCostsAbsolute" value={formData.closingCostsAbsolute} onChange={handleChange} />
+              )}
+              <small style={{ color: 'var(--text-secondary)', marginTop: '5px', display: 'block' }}>Est: {formatCurrency(formData.closingCostsMode === 'percent' ? (Number(formData.purchasePrice) || 0) * ((Number(formData.closingCostsPercent) || 0) / 100) : Number(formData.closingCostsAbsolute) || 0)}</small>
+            </div>
+            <div className="input-group">
+              <label className="input-label">Inspection Cost</label>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                <button type="button" onClick={() => handleCostModeChange('inspectionCost', 'percent')} className={`btn-toggle ${formData.inspectionCostMode === 'percent' ? 'active' : ''}`}>%</button>
+                <button type="button" onClick={() => handleCostModeChange('inspectionCost', 'dollar')} className={`btn-toggle ${formData.inspectionCostMode === 'dollar' ? 'active' : ''}`}>$</button>
+              </div>
+              {formData.inspectionCostMode === 'percent' ? (
+                <input className="modern-input" type="number" step="0.1" name="inspectionCostPercent" value={formData.inspectionCostPercent} onChange={handleChange} />
+              ) : (
+                <input className="modern-input" type="number" name="inspectionCostAbsolute" value={formData.inspectionCostAbsolute} onChange={handleChange} />
+              )}
+              <small style={{ color: 'var(--text-secondary)', marginTop: '5px', display: 'block' }}>Est: {formatCurrency(formData.inspectionCostMode === 'percent' ? (Number(formData.purchasePrice) || 0) * ((Number(formData.inspectionCostPercent) || 0) / 100) : Number(formData.inspectionCostAbsolute) || 0)}</small>
+            </div>
+            <div className="input-group">
+              <label className="input-label">Appraisal Cost</label>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                 <button type="button" onClick={() => handleCostModeChange('appraisalCost', 'dollar')} className={`btn-toggle ${formData.appraisalCostMode === 'dollar' ? 'active' : ''}`}>$</button>
+              </div>
+              <input className="modern-input" type="number" name="appraisalCostAbsolute" value={formData.appraisalCostAbsolute} onChange={handleChange} />
+            </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '20px' }}>
             <div className="input-group">
@@ -1149,14 +1195,6 @@ const AddResidenceFormOptimized = ({ onSaved, residenceToEdit }) => {
 
   useEffect(() => {
     if (residenceToEdit) {
-      // A simplified version of the original useEffect logic
-      // In a real-world scenario, you'd still need the full mapping logic,
-      // but it would be cleaner to manage.
-      const base = createInitialState();
-      const mergedData = { ...base, ...residenceToEdit };
-      // Simplified for brevity. The original complex merge logic is still needed
-      // but this structure is easier to manage.
-      setFormData(mergedData);
     } else {
       setFormData(createInitialState());
     }
@@ -1300,7 +1338,7 @@ const AddResidenceFormOptimized = ({ onSaved, residenceToEdit }) => {
         <div style={{ display: 'flex', borderBottom: '1px solid var(--glass-border)', marginBottom: '20px' }}>
           <Tab label="Property" isActive={activeTab === 'property'} onClick={() => setActiveTab('property')} />
           <Tab label="Financials" isActive={activeTab === 'financials'} onClick={() => setActiveTab('financials')} />
-          <Tab label="Details" isActive={active.Tab === 'details'} onClick={() => setActiveTab('details')} />
+          <Tab label="Details" isActive={activeTab === 'details'} onClick={() => setActiveTab('details')} />
           <Tab label="Media" isActive={activeTab === 'media'} onClick={() => setActiveTab('media')} />
         </div>
 

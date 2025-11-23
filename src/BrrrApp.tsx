@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useMemo, useReducer, useState } from 'react';
+import React, { createContext, useContext, useMemo, useReducer, useState, useEffect } from 'react';
 import HardMoneyToDscrAnalyzer from './components/HardMoneyToDscrAnalyzer';
+import { db } from './firebase.js'; // Corrected path
+import { doc, setDoc, collection, serverTimestamp, updateDoc } from 'firebase/firestore';
 
 type PropertyProfile = {
   address: string;
@@ -32,11 +34,27 @@ type OwnerProfile = {
 
 type AcquisitionRehab = {
   purchasePrice: number;
-  earnestMoney: number;
-  inspectionCost: number;
-  appraisalCost: number;
-  closingCosts: number;
-  realtorFees: number;
+  earnestMoneyMode: 'percent' | 'dollar';
+  earnestMoneyPercent: number;
+  earnestMoneyAbsolute: number;
+  inspectionCostMode: 'percent' | 'dollar';
+  inspectionCostPercent: number;
+  inspectionCostAbsolute: number;
+  appraisalCostMode: 'percent' | 'dollar';
+  appraisalCostPercent: number;
+  appraisalCostAbsolute: number;
+  closingCostsMode: 'percent' | 'dollar';
+  closingCostsPercent: number;
+  closingCostsAbsolute: number;
+  realtorFeesMode: 'percent' | 'dollar';
+  realtorFeesPercent: number;
+  realtorFeesAbsolute: number;
+  // These will be calculated values
+  earnestMoney: number; // calculated
+  inspectionCost: number; // calculated
+  appraisalCost: number; // calculated
+  closingCosts: number; // calculated
+  realtorFees: number; // calculated
   rehabExterior: number;
   rehabInterior: number;
   rehabKitchen: number;
@@ -128,6 +146,7 @@ type BrrrrOutputs = {
   cashLeftInDeal: number;
   equityAfterRefi: number;
   cashOnCashReturnYear1: number;
+  cashflowAfterRefiMonthly: number;
 };
 
 const defaultState: BrrrrState = {
@@ -155,11 +174,26 @@ const defaultState: BrrrrState = {
   },
   acquisitionRehab: {
     purchasePrice: 180000,
-    earnestMoney: 2500,
-    inspectionCost: 650,
-    appraisalCost: 650,
-    closingCosts: 3500,
-    realtorFees: 0,
+    earnestMoneyMode: 'percent',
+    earnestMoneyPercent: 1,
+    earnestMoneyAbsolute: 2500,
+    inspectionCostMode: 'dollar',
+    inspectionCostPercent: 0.5,
+    inspectionCostAbsolute: 650,
+    appraisalCostMode: 'dollar',
+    appraisalCostPercent: 0.5,
+    appraisalCostAbsolute: 650,
+    closingCostsMode: 'percent',
+    closingCostsPercent: 2,
+    closingCostsAbsolute: 3500,
+    realtorFeesMode: 'dollar',
+    realtorFeesPercent: 3,
+    realtorFeesAbsolute: 0,
+    earnestMoney: 0, // calculated
+    inspectionCost: 0, // calculated
+    appraisalCost: 0, // calculated
+    closingCosts: 0, // calculated
+    realtorFees: 0, // calculated
     rehabExterior: 3500,
     rehabInterior: 6000,
     rehabKitchen: 10000,
@@ -239,8 +273,22 @@ const reducer = <K extends keyof BrrrrState>(state: BrrrrState, action: Action<K
   return state;
 };
 
-const BrrrrProvider = ({ children }: { children: React.ReactNode }) => {
+const BrrrrProvider = ({ children, residence }: { children: React.ReactNode; residence?: any }) => {
   const [state, dispatch] = useReducer(reducer, defaultState);
+
+  useEffect(() => {
+    if (residence && residence.brrrAnalysis) {
+      // If a residence with existing analysis is passed, load it into state.
+      // This is a shallow merge; a deep merge would be more robust.
+      Object.keys(residence.brrrAnalysis).forEach((sectionKey) => {
+        // Ensure the key from Firestore exists in our state shape before dispatching.
+        if (sectionKey in defaultState) {
+          dispatch({ type: 'update', section: sectionKey as keyof BrrrrState, patch: residence.brrrAnalysis[sectionKey] });
+        }
+      });
+    }
+  }, [residence]);
+
   const update = <K extends keyof BrrrrState>(section: K, patch: Partial<BrrrrState[K]>) => {
     dispatch({ type: 'update', section, patch });
   };
@@ -316,16 +364,32 @@ const remainingBalance = (
 
 const calculateBrrrrOutputs = (state: BrrrrState): BrrrrOutputs => {
   const { acquisitionRehab, purchaseFinancing, rehabFinancing, refiFinancing, rentalOps } = state;
+
+  const getCost = (
+    mode: 'percent' | 'dollar',
+    percent: number,
+    absolute: number,
+    base = acquisitionRehab.purchasePrice,
+  ) => (mode === 'percent' ? base * (percent / 100) : absolute);
+
+  const earnestMoney = getCost(acquisitionRehab.earnestMoneyMode, acquisitionRehab.earnestMoneyPercent, acquisitionRehab.earnestMoneyAbsolute);
+  const inspectionCost = getCost(acquisitionRehab.inspectionCostMode, acquisitionRehab.inspectionCostPercent, acquisitionRehab.inspectionCostAbsolute);
+  const appraisalCost = getCost(acquisitionRehab.appraisalCostMode, acquisitionRehab.appraisalCostPercent, acquisitionRehab.appraisalCostAbsolute);
+  const closingCosts = getCost(acquisitionRehab.closingCostsMode, acquisitionRehab.closingCostsPercent, acquisitionRehab.closingCostsAbsolute);
+  const realtorFees = getCost(acquisitionRehab.realtorFeesMode, acquisitionRehab.realtorFeesPercent, acquisitionRehab.realtorFeesAbsolute);
+
   const { rehabTotal, rehabWithContingency } = calculateTotalRehab(acquisitionRehab);
   const purchaseLoanAmount = acquisitionRehab.purchasePrice * (purchaseFinancing.purchaseLTV / 100);
+
   const totalAcquisitionCosts =
-    acquisitionRehab.earnestMoney +
-    acquisitionRehab.inspectionCost +
-    acquisitionRehab.appraisalCost +
-    acquisitionRehab.closingCosts +
-    acquisitionRehab.realtorFees +
+    earnestMoney +
+    inspectionCost +
+    appraisalCost +
+    closingCosts +
+    realtorFees +
     purchaseFinancing.lenderFees +
     (purchaseFinancing.pointsPercent / 100) * purchaseLoanAmount;
+
   const carrying = acquisitionRehab.rehabTimelineDays * acquisitionRehab.dailyCarryingCost;
   const rehabLoanAmount = rehabFinancing.financed ? rehabWithContingency * (rehabFinancing.rehabLTC / 100) : 0;
   const totalPointsAndFees =
@@ -355,6 +419,8 @@ const calculateBrrrrOutputs = (state: BrrrrState): BrrrrOutputs => {
   const refiMonthlyPI = mortgagePayment(refiLoanAmount, refiFinancing.interestRate, refiFinancing.termYears);
   const annualDebtService = refiMonthlyPI * 12;
   const dscr = annualDebtService > 0 ? noiAnnual / annualDebtService : 0;
+  const cashflowAfterRefiMonthly = rentalCashflowMonthlyBeforeRefiDebt - refiMonthlyPI;
+
 
   const monthsFinanced = Math.max(1, Math.min(acquisitionRehab.rehabTimelineDays / 30, purchaseFinancing.termMonths));
   const hardMoneyInterest =
@@ -371,7 +437,7 @@ const calculateBrrrrOutputs = (state: BrrrrState): BrrrrOutputs => {
   const cashLeftInDeal = totalCashIntoDeal - cashOutFromRefi;
   const equityAfterRefi = refiFinancing.arv - refiLoanAmount;
   const cashOnCashReturnYear1 =
-    (rentalCashflowMonthlyBeforeRefiDebt * 12) / (cashLeftInDeal !== 0 ? cashLeftInDeal : 1);
+    (cashflowAfterRefiMonthly * 12) / (cashLeftInDeal > 0 ? cashLeftInDeal : 1);
 
   return {
     totalRehabCost: rehabTotal,
@@ -396,6 +462,7 @@ const calculateBrrrrOutputs = (state: BrrrrState): BrrrrOutputs => {
     cashLeftInDeal,
     equityAfterRefi,
     cashOnCashReturnYear1,
+    cashflowAfterRefiMonthly,
   };
 };
 
@@ -475,6 +542,62 @@ const TabButton = ({
     {label}
   </button>
 );
+
+type CostInputProps = {
+  label: string;
+  mode: 'percent' | 'dollar';
+  percentValue: number;
+  absoluteValue: number;
+  purchasePrice: number;
+  onModeChange: (mode: 'percent' | 'dollar') => void;
+  onPercentChange: (value: number) => void;
+  onAbsoluteChange: (value: number) => void;
+};
+
+const CostInputField = ({
+  label,
+  mode,
+  percentValue,
+  absoluteValue,
+  purchasePrice,
+  onModeChange,
+  onPercentChange,
+  onAbsoluteChange,
+}: CostInputProps) => {
+  const estimatedValue = mode === 'percent' ? purchasePrice * (percentValue / 100) : absoluteValue;
+
+  return (
+    <div className="block">
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <div className="flex items-center gap-2 mt-1">
+        <div className="flex rounded-lg border border-slate-200 p-0.5">
+          <button
+            type="button"
+            onClick={() => onModeChange('percent')}
+            className={`px-2 py-1 text-xs rounded-md ${mode === 'percent' ? 'bg-slate-200 text-slate-800' : 'text-slate-500 hover:bg-slate-100'}`}
+          >
+            %
+          </button>
+          <button
+            type="button"
+            onClick={() => onModeChange('dollar')}
+            className={`px-2 py-1 text-xs rounded-md ${mode === 'dollar' ? 'bg-slate-200 text-slate-800' : 'text-slate-500 hover:bg-slate-100'}`}
+          >
+            $
+          </button>
+        </div>
+        <input
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-brrr-cyan focus:outline-none focus:ring-2 focus:ring-brrr-cyan/30"
+          type="number"
+          step={mode === 'percent' ? 0.1 : 1}
+          value={mode === 'percent' ? percentValue : absoluteValue}
+          onChange={(e) => (mode === 'percent' ? onPercentChange(Number(e.target.value)) : onAbsoluteChange(Number(e.target.value)))}
+        />
+      </div>
+      <span className="mt-1 block text-xs text-slate-500">Est: ${Math.round(estimatedValue).toLocaleString()}</span>
+    </div>
+  );
+};
 
 const PropertyOwnerTab = () => {
   const { state, update } = useBrrrr();
@@ -595,35 +718,55 @@ const AcquisitionRehabTab = () => {
               value={acquisitionRehab.purchasePrice}
               onChange={(v) => handleChange('purchasePrice', (v as number) || 0)}
             />
-            <InputField
+            <CostInputField
               label="Earnest Money"
-              type="number"
-              value={acquisitionRehab.earnestMoney}
-              onChange={(v) => handleChange('earnestMoney', (v as number) || 0)}
+              mode={acquisitionRehab.earnestMoneyMode}
+              percentValue={acquisitionRehab.earnestMoneyPercent}
+              absoluteValue={acquisitionRehab.earnestMoneyAbsolute}
+              purchasePrice={acquisitionRehab.purchasePrice}
+              onModeChange={(m) => handleChange('earnestMoneyMode', m)}
+              onPercentChange={(v) => handleChange('earnestMoneyPercent', v)}
+              onAbsoluteChange={(v) => handleChange('earnestMoneyAbsolute', v)}
             />
-            <InputField
+            <CostInputField
               label="Inspection Cost"
-              type="number"
-              value={acquisitionRehab.inspectionCost}
-              onChange={(v) => handleChange('inspectionCost', (v as number) || 0)}
+              mode={acquisitionRehab.inspectionCostMode}
+              percentValue={acquisitionRehab.inspectionCostPercent}
+              absoluteValue={acquisitionRehab.inspectionCostAbsolute}
+              purchasePrice={acquisitionRehab.purchasePrice}
+              onModeChange={(m) => handleChange('inspectionCostMode', m)}
+              onPercentChange={(v) => handleChange('inspectionCostPercent', v)}
+              onAbsoluteChange={(v) => handleChange('inspectionCostAbsolute', v)}
             />
-            <InputField
+            <CostInputField
               label="Appraisal Cost"
-              type="number"
-              value={acquisitionRehab.appraisalCost}
-              onChange={(v) => handleChange('appraisalCost', (v as number) || 0)}
+              mode={acquisitionRehab.appraisalCostMode}
+              percentValue={acquisitionRehab.appraisalCostPercent}
+              absoluteValue={acquisitionRehab.appraisalCostAbsolute}
+              purchasePrice={acquisitionRehab.purchasePrice}
+              onModeChange={(m) => handleChange('appraisalCostMode', m)}
+              onPercentChange={(v) => handleChange('appraisalCostPercent', v)}
+              onAbsoluteChange={(v) => handleChange('appraisalCostAbsolute', v)}
             />
-            <InputField
+            <CostInputField
               label="Closing Costs"
-              type="number"
-              value={acquisitionRehab.closingCosts}
-              onChange={(v) => handleChange('closingCosts', (v as number) || 0)}
+              mode={acquisitionRehab.closingCostsMode}
+              percentValue={acquisitionRehab.closingCostsPercent}
+              absoluteValue={acquisitionRehab.closingCostsAbsolute}
+              purchasePrice={acquisitionRehab.purchasePrice}
+              onModeChange={(m) => handleChange('closingCostsMode', m)}
+              onPercentChange={(v) => handleChange('closingCostsPercent', v)}
+              onAbsoluteChange={(v) => handleChange('closingCostsAbsolute', v)}
             />
-            <InputField
+            <CostInputField
               label="Realtor Fees"
-              type="number"
-              value={acquisitionRehab.realtorFees}
-              onChange={(v) => handleChange('realtorFees', (v as number) || 0)}
+              mode={acquisitionRehab.realtorFeesMode}
+              percentValue={acquisitionRehab.realtorFeesPercent}
+              absoluteValue={acquisitionRehab.realtorFeesAbsolute}
+              purchasePrice={acquisitionRehab.purchasePrice}
+              onModeChange={(m) => handleChange('realtorFeesMode', m)}
+              onPercentChange={(v) => handleChange('realtorFeesPercent', v)}
+              onAbsoluteChange={(v) => handleChange('realtorFeesAbsolute', v)}
             />
           </div>
         </SectionCard>
@@ -1097,11 +1240,12 @@ const ResultsTab = () => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {card('All-In Cost', fmtMoney(outputs.allInCost))}
         {card('Refi Loan Amount', fmtMoney(outputs.refiLoanAmount))}
         {card('Cash Left In Deal', fmtMoney(outputs.cashLeftInDeal), outputs.cashLeftInDeal > 0 ? 'border-orange-200 bg-orange-50' : '')}
         {card('Equity After Refi', fmtMoney(outputs.equityAfterRefi))}
+        {card('Monthly Cash Flow', fmtMoney(outputs.cashflowAfterRefiMonthly), outputs.cashflowAfterRefiMonthly < 0 ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50')}
         {card('DSCR', outputs.dscr.toFixed(2))}
         {card(
           'Year 1 Cash-on-Cash',
@@ -1109,7 +1253,7 @@ const ResultsTab = () => {
             ? '∞'
             : `${(outputs.cashOnCashReturnYear1 * 100).toFixed(1)}%`,
         )}
-        {card('Monthly Cashflow (pre-debt)', fmtMoney(outputs.rentalCashflowMonthlyBeforeRefiDebt))}
+        {card('Monthly NOI', fmtMoney(outputs.rentalCashflowMonthlyBeforeRefiDebt))}
       </div>
 
       <SectionCard title="Detail">
@@ -1430,9 +1574,11 @@ const RentalOpsPanel = () => {
   );
 };
 
-const BrrrApp = () => {
+const BrrrApp = ({ residence }: { residence?: { id: string } }) => {
   const [tab, setTab] = useState<'property' | 'acquisition' | 'financing' | 'results' | 'quickScreen'>('property');
+  const [isSaving, setIsSaving] = useState(false);
   const { state } = useBrrrr();
+
 
   const tabs = [
     { key: 'property', label: 'Property & Owner' },
@@ -1442,12 +1588,45 @@ const BrrrApp = () => {
     { key: 'quickScreen', label: 'BRRRR Quick Screen' },
   ] as const;
 
+  const handleSave = async () => {
+    setIsSaving(true);
+    if (!residence || !residence.id) {
+      alert("No residence profile is being edited. Cannot save.");
+      setIsSaving(false);
+      return;
+    }
+
+    try {
+      const residenceRef = doc(db, 'residences', residence.id);
+
+      const dataToSave = {
+        brrrAnalysis: state,
+        updatedAt: serverTimestamp(),
+      };
+
+      await updateDoc(residenceRef, dataToSave);
+      alert('BRRR analysis saved to the residence profile!');
+    } catch (error) {
+      console.error('Error saving BRRR profile:', error);
+      alert(`Error saving profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-5xl mx-auto px-4 py-6">
-          <p className="text-sm font-semibold text-brrr-cyan uppercase tracking-wide mb-1">BRRR Analyzer</p>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Buy · Rehab · Rent · Refinance · Repeat</h1>
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-semibold text-brrr-cyan uppercase tracking-wide mb-1">BRRR Analyzer</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Buy · Rehab · Rent · Refinance · Repeat</h1>
+            </div>
+            <button onClick={handleSave} disabled={isSaving || !residence} className="ml-4 whitespace-nowrap rounded-lg bg-brrr-cyan px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brrr-cyan/90 disabled:bg-slate-300 disabled:cursor-not-allowed">
+              {isSaving ? 'Saving...' : 'Save Profile'}
+            </button>
+          </div>
           <p className="text-sm text-slate-600 mt-1">Typed, tabbed, and ready for quick scenario work.</p>
           <div className="flex flex-wrap gap-2 mt-4">
             {tabs.map((t) => (
@@ -1493,10 +1672,10 @@ const BrrrApp = () => {
   );
 };
 
-export default function BrrrAppWrapped() {
+export default function BrrrAppWrapped({ residence }: { residence?: any }) {
   return (
-    <BrrrrProvider>
-      <BrrrApp />
+    <BrrrrProvider residence={residence}>
+      <BrrrApp residence={residence} />
     </BrrrrProvider>
   );
 }
