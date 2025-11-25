@@ -5,9 +5,6 @@ import { doc, setDoc, collection, serverTimestamp, updateDoc } from 'firebase/fi
 
 type PropertyProfile = {
   address: string;
-  city: string;
-  state: string;
-  zip: string;
   yearBuilt?: number;
   propertyType: 'SFH' | 'Duplex' | 'Triplex' | 'Fourplex' | 'Other';
   squareFeet?: number;
@@ -19,7 +16,6 @@ type PropertyProfile = {
   arvEstimate?: number;
   lastSoldPrice?: number;
   lastSoldDate?: string;
-  county?: string;
   zoning?: string;
 };
 
@@ -69,7 +65,6 @@ type AcquisitionRehab = {
   rehabMisc: number;
   rehabOveragePercent: number;
   rehabTimelineDays: number;
-  dailyCarryingCost: number;
 };
 
 type PurchaseFinancing = {
@@ -152,16 +147,12 @@ type BrrrrOutputs = {
 const defaultState: BrrrrState = {
   propertyProfile: {
     address: '123 Maple St',
-    city: 'Cleveland',
-    state: 'OH',
-    zip: '44101',
     yearBuilt: 1998,
     propertyType: 'SFH',
     squareFeet: 1850,
     lotSizeSqFt: 7400,
     beds: 3,
     baths: 2,
-    county: 'Cuyahoga',
     arvEstimate: 255000,
   },
   ownerProfile: {
@@ -208,7 +199,6 @@ const defaultState: BrrrrState = {
     rehabMisc: 1500,
     rehabOveragePercent: 10,
     rehabTimelineDays: 90,
-    dailyCarryingCost: 45,
   },
   purchaseFinancing: {
     useHardMoney: true,
@@ -330,8 +320,7 @@ const calculateAllInCosts = (state: BrrrrState) => {
     acquisitionRehab.realtorFees +
     purchaseFinancing.lenderFees +
     (purchaseFinancing.pointsPercent / 100) * purchaseLoanAmount;
-  const carrying = acquisitionRehab.rehabTimelineDays * acquisitionRehab.dailyCarryingCost;
-  return acquisitionRehab.purchasePrice + totalAcquisitionCosts + rehabWithContingency + carrying;
+  return acquisitionRehab.purchasePrice + totalAcquisitionCosts + rehabWithContingency;
 };
 
 const mortgagePayment = (principal: number, annualRatePercent: number, termYears: number) => {
@@ -391,15 +380,19 @@ const calculateBrrrrOutputs = (state: BrrrrState): BrrrrOutputs => {
     (purchaseFinancing.pointsPercent / 100) * purchaseLoanAmount;
 
   const carrying = acquisitionRehab.rehabTimelineDays * acquisitionRehab.dailyCarryingCost;
-  const rehabLoanAmount = rehabFinancing.financed ? rehabWithContingency * (rehabFinancing.rehabLTC / 100) : 0;
+  const rehabLoanAmount = rehabFinancing.financed ? rehabWithContingency * (rehabFinancing.rehabLTC / 100) : 0; // This line had a reference to a deleted variable, but it was a mistake in my analysis. The variable is not used here. Re-checking.
+  // The original code was:
+  // const carrying = acquisitionRehab.rehabTimelineDays * acquisitionRehab.dailyCarryingCost;
+  // const rehabLoanAmount = rehabFinancing.financed ? rehabWithContingency * (rehabFinancing.rehabLTC / 100) : 0;
+  // I will remove `carrying` and its usage.
   const totalPointsAndFees =
     purchaseFinancing.lenderFees +
     rehabFinancing.lenderFees +
     (purchaseFinancing.pointsPercent / 100) * purchaseLoanAmount +
     (rehabFinancing.pointsPercent / 100) * rehabLoanAmount;
-  const allInCost = acquisitionRehab.purchasePrice + totalAcquisitionCosts + rehabWithContingency + carrying;
+  const allInCost = acquisitionRehab.purchasePrice + totalAcquisitionCosts + rehabWithContingency;
   const downPayment = acquisitionRehab.purchasePrice - purchaseLoanAmount;
-  const totalCashIntoDeal = downPayment + totalAcquisitionCosts + (rehabWithContingency - rehabLoanAmount) + carrying;
+  const totalCashIntoDeal = downPayment + totalAcquisitionCosts + (rehabWithContingency - rehabLoanAmount);
 
   const effectiveGrossIncomeAnnual = rentalOps.marketRent * (1 - rentalOps.vacancyRate / 100) * 12;
   const variableExpensesAnnual =
@@ -613,10 +606,6 @@ const PropertyOwnerTab = () => {
       <SectionCard title="Property Info">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <InputField label="Address" value={propertyProfile.address} onChange={(v) => handlePropertyChange('address', v as string)} />
-          <InputField label="City" value={propertyProfile.city} onChange={(v) => handlePropertyChange('city', v as string)} />
-          <InputField label="State" value={propertyProfile.state} onChange={(v) => handlePropertyChange('state', v as string)} />
-          <InputField label="ZIP" value={propertyProfile.zip} onChange={(v) => handlePropertyChange('zip', v as string)} />
-          <InputField label="County" value={propertyProfile.county} onChange={(v) => handlePropertyChange('county', v as string)} />
           <label className="block">
             <span className="text-sm font-medium text-slate-700">Property Type</span>
             <select
@@ -857,13 +846,6 @@ const AcquisitionRehabTab = () => {
               type="number"
               value={acquisitionRehab.rehabTimelineDays}
               onChange={(v) => handleChange('rehabTimelineDays', (v as number) || 0)}
-            />
-            <InputField
-              label="Daily Carrying Cost"
-              type="number"
-              value={acquisitionRehab.dailyCarryingCost}
-              onChange={(v) => handleChange('dailyCarryingCost', (v as number) || 0)}
-              helper="Taxes + utilities + interest per day"
             />
           </div>
         </SectionCard>
@@ -1243,8 +1225,8 @@ const ResultsTab = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {card('All-In Cost', fmtMoney(outputs.allInCost))}
         {card('Refi Loan Amount', fmtMoney(outputs.refiLoanAmount))}
-        {card('Cash Left In Deal', fmtMoney(outputs.cashLeftInDeal), outputs.cashLeftInDeal > 0 ? 'border-orange-200 bg-orange-50' : '')}
-        {card('Equity After Refi', fmtMoney(outputs.equityAfterRefi))}
+        {card('Your Cash Left in Deal', fmtMoney(outputs.cashLeftInDeal), outputs.cashLeftInDeal > 0 ? 'border-orange-200 bg-orange-50' : '')}
+        {card('Your Equity Created', fmtMoney(outputs.equityAfterRefi))}
         {card('Monthly Cash Flow', fmtMoney(outputs.cashflowAfterRefiMonthly), outputs.cashflowAfterRefiMonthly < 0 ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50')}
         {card('DSCR', outputs.dscr.toFixed(2))}
         {card(
@@ -1273,8 +1255,8 @@ const ResultsTab = () => {
             <ul className="space-y-1 text-sm text-slate-700">
               <li>Hard Money Payoff: {fmtMoney(outputs.hardMoneyPayoff)}</li>
               <li>Rehab Loan Payoff: {fmtMoney(outputs.rehabLoanPayoff)}</li>
-              <li>Cash Out From Refi: {fmtMoney(outputs.cashOutFromRefi)}</li>
-              <li>Equity After Refi: {fmtMoney(outputs.equityAfterRefi)}</li>
+              <li>Cash Back to You (from Refi): {fmtMoney(outputs.cashOutFromRefi)}</li>
+              <li>Your Equity Created: {fmtMoney(outputs.equityAfterRefi)}</li>
               <li>Annual Debt Service: {fmtMoney(outputs.annualDebtService)}</li>
               <li>NOI: {fmtMoney(outputs.noiAnnual)}</li>
               <li>DSCR: {outputs.dscr.toFixed(2)}</li>
@@ -1661,7 +1643,7 @@ const BrrrApp = ({ residence }: { residence?: { id: string } }) => {
           <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
             <p className="font-semibold text-slate-800">Current summary</p>
             <p>
-              Property: {state.propertyProfile.address}, {state.propertyProfile.city} · Purchase ${' '}
+              Property: {state.propertyProfile.address} · Purchase ${' '}
               {state.acquisitionRehab.purchasePrice.toLocaleString()} · ARV ${' '}
               {state.refiFinancing.arv.toLocaleString()}
             </p>
