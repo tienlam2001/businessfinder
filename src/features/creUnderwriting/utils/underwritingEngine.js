@@ -145,8 +145,9 @@ function runScenario(model, scenarioKey) {
   const noiByYear = calculateNOI(egiByYear, expenseByYear);
 
   const noiYear1 = noiByYear[0] ?? 0;
-  const ltvLoan = purchasePrice * (normalizeNumber(model?.debt?.ltvPct) / 100);
+  const ltvLoanBase = purchasePrice * (normalizeNumber(model?.debt?.ltvPct) / 100);
   const maxLoanByDSCR = findMaxLoanByDSCR(noiYear1, model?.debt, purchasePrice);
+  const ltvLoan = purchasePrice > 0 ? ltvLoanBase : maxLoanByDSCR; // if no price entered, allow DSCR sizing to drive
   const loanAmount = Math.min(ltvLoan || 0, maxLoanByDSCR || 0);
   const debtServiceSchedule = buildDebtServiceSchedule(loanAmount, model?.debt, holdYears);
   const cashflowsToEquity = noiByYear.map((noi, idx) => noi - (debtServiceSchedule[idx] ?? 0));
