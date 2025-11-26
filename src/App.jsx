@@ -11,6 +11,7 @@ import AddPersonForm from './components/AddPersonForm'; // Corrected path
 import AddResidenceForm from './components/AddResidenceForm';
 import ResidenceProfile from './components/ResidenceProfile';
 import BrrrApp from './BrrrApp';
+import CreUnderwritingPage from './features/creUnderwriting/CreUnderwritingPage';
 import './App.css';
 
 function App() {
@@ -143,6 +144,9 @@ function App() {
           <button onClick={() => setViewMode('brrr')} className={viewMode === 'brrr' ? 'active' : ''}>
             <Home size={16} /> BRRR Suite
           </button>
+          <button onClick={() => setViewMode('cre')} className={viewMode === 'cre' ? 'active' : ''}>
+            <Building2 size={16} /> CRE Underwriting
+          </button>
           <a href="/calculators.html" target="_blank" className="view-switcher-link">
             <Calculator size={16} /> Calculators
           </a>
@@ -153,6 +157,10 @@ function App() {
       {viewMode === 'brrr' ? (
         <div style={{ marginTop: '1rem' }}>
           <BrrrApp />
+        </div>
+      ) : viewMode === 'cre' ? (
+        <div style={{ marginTop: '1rem' }}>
+          <CreUnderwritingPage />
         </div>
       ) : (
         <div className="main-container">

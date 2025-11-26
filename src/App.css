@@ -307,3 +307,108 @@ body {
   .print-container p, .print-container span { color: #333 !important; }
   .financial-grid .stat-box { border: 1px solid #ddd !important; background: #f9f9f9 !important; }
 }
+
+/* --- CRE Underwriting --- */
+.cre-underwriting-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.cre-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cre-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.cre-grid.two-col {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.section-title {
+  margin: 0;
+  color: var(--text-primary);
+}
+.section-subtitle {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+}
+.table-wrapper {
+  overflow-x: auto;
+}
+.cre-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-primary);
+}
+.cre-table th, .cre-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.cre-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.cre-table tr:hover td {
+  background: rgba(255,255,255,0.02);
+}
+.table-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.8);
+  border: var(--glass-border);
+  border-radius: 8px;
+  color: white;
+  box-sizing: border-box;
+}
+.scenario-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn-modern-subtle.active {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--accent-cyan);
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+.stat-card {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.stat-label {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+.stat-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.alert.warning {
+  background: rgba(255, 196, 0, 0.12);
+  border: 1px solid rgba(255, 196, 0, 0.35);
+  color: #fcd34d;
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
