@@ -37,13 +37,13 @@ export default function CashflowTable({ scenarioResult }) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.year}>
-                <td>{row.year}</td>
-                <td>{fmtCurrency(row.gpr)}</td>
-                <td>{fmtCurrency(row.egi)}</td>
-                <td>{fmtCurrency(row.expenses)}</td>
-                <td>{fmtCurrency(row.noi)}</td>
-                <td>{fmtCurrency(row.debtService)}</td>
-                <td>{fmtCurrency(row.cashflowToEquity)}</td>
+              <td>{row.year}</td>
+              <td>{fmtCurrency(row.gpr)}</td>
+              <td>{fmtCurrency(row.egi)}</td>
+              <td>{fmtCurrency(row.opEx ?? row.expenses)}</td>
+              <td>{fmtCurrency(row.noi)}</td>
+              <td>{fmtCurrency(row.debtService)}</td>
+              <td>{fmtCurrency(row.cashflowToEquity)}</td>
                 <td>{fmtNumber(row.dscr)}</td>
               </tr>
             ))}

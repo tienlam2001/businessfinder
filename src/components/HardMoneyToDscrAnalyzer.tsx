@@ -25,10 +25,12 @@
 import React, { useState, useMemo, useRef } from 'react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import './HardMoneyToDscrAnalyzer.css';
 
 // 1) Deal Inputs
 // ---------------------------------------------------
 type DealInputs = {
+  loanSizingMethod: 'ltv' | 'dscr';
   // Purchase & Rehab
   imageUrls: string[];
   purchasePrice: number;
@@ -337,49 +339,45 @@ const formatPercent = (value: number) => new Intl.NumberFormat('en-US', { style:
 const formatNumber = (value: number) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
 const InputField: React.FC<{ label: string; name: keyof DealInputs; value: number; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; isPercent?: boolean; helperText?: string }> = ({ label, name, value, onChange, isPercent, helperText }) => (
-  <div className="flex flex-col space-y-1">
-    <label htmlFor={name} className="text-sm font-medium text-gray-600">{label}</label>
-    <div className="relative">
+  <div className="hm-field">
+    <label htmlFor={name} className="hm-label">{label}</label>
+    <div className="hm-input-wrapper">
       <input
         id={name}
         name={name}
         type="number"
-        step={isPercent ? "0.01" : "100"}
+        step={isPercent ? '0.01' : '100'}
         value={isPercent ? value * 100 : value}
         onChange={onChange}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        className="hm-input"
       />
-      {isPercent && <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500">%</span>}
+      {isPercent && <span className="hm-input-suffix">%</span>}
     </div>
-    {helperText && <p className="text-xs text-gray-500">{helperText}</p>}
+    {helperText && <p className="hm-helper">{helperText}</p>}
   </div>
 );
 
 const OutputField: React.FC<{ label: string; value: string; highlight?: boolean }> = ({ label, value, highlight }) => (
-  <div className={`flex justify-between items-center py-2 ${highlight ? 'font-bold' : ''}`}>
-    <span className="text-gray-600">{label}</span>
-    <span className={highlight ? 'text-blue-600' : 'text-gray-900'}>{value}</span>
+  <div className={`hm-output ${highlight ? 'hm-output-strong' : ''}`}>
+    <span className="hm-output-label">{label}</span>
+    <span className="hm-output-value">{value}</span>
   </div>
 );
 
 const Card: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div className="bg-white rounded-xl shadow p-4 sm:p-6">
-    <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">{title}</h3>
+  <div className="hm-card">
+    <h3 className="hm-card-title">{title}</h3>
     <div className="space-y-2">{children}</div>
   </div>
 );
 
 const RiskFlag: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="p-3 mt-4 text-sm text-red-700 bg-red-100 border border-red-300 rounded-md">
-    {children}
-  </div>
+  <div className="hm-flag hm-flag-risk">{children}</div>
 );
 
 const InfoFlag: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <div className="p-3 mt-4 text-sm text-blue-700 bg-blue-100 border border-blue-300 rounded-md">
-      {children}
-    </div>
-  );
+  <div className="hm-flag hm-flag-info">{children}</div>
+);
 
 type HoverData = {
   year: number;
@@ -393,16 +391,6 @@ export default function HardMoneyToDscrAnalyzer() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const reportRef = useRef<HTMLDivElement>(null);
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    const isPercent = e.target.dataset.isPercent === 'true';
-    const numericValue = parseFloat(value);
-
-    setInputs(prev => ({
-      ...prev,
-      [name]: isPercent ? (isNaN(numericValue) ? 0 : numericValue / 100) : (isNaN(numericValue) ? 0 : numericValue),
-    }));
-  };
 
   const handleLoanSizingChange = (method: 'ltv' | 'dscr') => {
     setInputs(prev => ({
@@ -585,275 +573,295 @@ export default function HardMoneyToDscrAnalyzer() {
   };
 
   return (
-    <div className="bg-gray-50 min-h-screen">
-      <div ref={reportRef} className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 bg-white">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">Hard Money → DSCR Analyzer</h1>
-          <p className="mt-2 text-md text-gray-600">Model a BRRRR deal: 80% LTV purchase + 100% rehab financed, then a DSCR refinance.</p>
+    <div className="hm-shell">
+      <div ref={reportRef} className="hm-report max-w-7xl mx-auto overflow-hidden">
+        <div className="hm-header text-center">
+          <h1 className="hm-title">Hard Money → DSCR Analyzer</h1>
+          <p className="hm-subtitle">Model a BRRRR deal: 80% LTV purchase + 100% rehab financed, then a DSCR refinance.</p>
         </div>
 
-        <div id="pdf-button" className="fixed bottom-6 right-6 z-50 print:hidden">
-            <button
-                onClick={handleGeneratePdf}
-                disabled={isGeneratingPdf}
-                className="bg-blue-600 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:bg-blue-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-                {isGeneratingPdf ? 'Generating...' : 'Create PDF Report'}
-            </button>
+        <div id="pdf-button" className="hm-pdf print:hidden flex justify-center mt-8 mb-4">
+          <button
+            onClick={handleGeneratePdf}
+            disabled={isGeneratingPdf}
+            className="btn-modern"
+          >
+            {isGeneratingPdf ? 'Generating...' : 'Create PDF Report'}
+          </button>
         </div>
 
-        <Card title="Property Images">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {inputs.imageUrls.map((url, index) => (
-              <div key={index} className="relative">
-                <input
-                  id={`imageUpload${index}`}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleImageFileChange(index, e.target.files ? e.target.files[0] : null)}
-                  className="sr-only" // Visually hide the input
-                />
-                <label
-                  htmlFor={`imageUpload${index}`}
-                  className="cursor-pointer aspect-square bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 hover:border-blue-500 transition-colors"
-                >
-                  {url ? (
-                    <>
-                      <img src={url} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
-                      <button
-                        onClick={(e) => { e.preventDefault(); handleImageFileChange(index, null); }}
-                        className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 text-xs leading-none hover:bg-black/80"
-                        aria-label="Remove image"
-                      >
-                        &#x2715;
-                      </button>
-                    </>
-                  ) : (
-                    <span className="text-gray-500 text-sm">Upload {index + 1}</span>
-                  )}
-                </label>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Input Column */}
-          <div id="pdf-input-column" className="space-y-6">
-            {Object.entries(inputSections).map(([title, fields]) => (
-              <Card key={title} title={title}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {title === "DSCR Refi" && (
-                    <div className="sm:col-span-2">
-                      <label className="text-sm font-medium text-gray-600">Loan Sizing Method</label>
-                      <div className="mt-1 flex rounded-md border border-gray-300 p-0.5 w-full sm:w-auto">
-                        <button
-                          type="button"
-                          onClick={() => handleLoanSizingChange('ltv')}
-                          className={`w-1/2 rounded-md px-3 py-1 text-sm font-semibold transition-colors ${
-                            inputs.loanSizingMethod === 'ltv' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
-                          }`}
-                        >
-                          By LTV
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleLoanSizingChange('dscr')}
-                          className={`w-1/2 rounded-md px-3 py-1 text-sm font-semibold transition-colors ${
-                            inputs.loanSizingMethod === 'dscr' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
-                          }`}
-                        >
-                          By DSCR
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {fields.map(field => (
-                    <div key={field.name} className={fields.length % 2 !== 0 && fields.indexOf(field) === fields.length -1 ? 'sm:col-span-2' : ''}>
-                        <InputField
-                            label={field.label}
-                            name={field.name as keyof DealInputs}
-                            value={inputs[field.name as keyof DealInputs]}
-                            onChange={(e) => {
-                                const { name, value } = e.target;
-                                const isPercent = field.isPercent;
-                                const numericValue = parseFloat(value);
-                                setInputs(prev => ({
-                                    ...prev,
-                                    [name]: isPercent ? (isNaN(numericValue) ? 0 : numericValue / 100) : (isNaN(numericValue) ? 0 : numericValue),
-                                }));
-                            }}
-                            isPercent={field.isPercent}
-                        />
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            ))}
-          </div>
-
-          {/* Output Column */}
-          <div id="pdf-output-column" className="space-y-6 lg:col-span-1">
-            <Card title="Hard Money Summary">
-              <OutputField label="HM Purchase Loan" value={formatCurrency(hardMoney.hmPurchaseLoanAmount)} />
-              <OutputField label="HM Rehab Loan" value={formatCurrency(hardMoney.hmRehabLoanAmount)} />
-              <OutputField label="HM Total Loan" value={formatCurrency(hardMoney.hmTotalLoanAmount)} />
-              <hr className="border-t border-gray-200" />
-              <OutputField label="Down Payment" value={formatCurrency(hardMoney.hmDownPayment)} />
-              <OutputField label="Cash to Close" value={formatCurrency(hardMoney.cashToClose)} />
-              <hr className="border-t border-gray-200" />
-              <OutputField label="HM Monthly Interest-Only" value={formatCurrency(hardMoney.hmMonthlyInterestOnly)} />
-              <OutputField label="HM Total Interest (Rehab)" value={formatCurrency(hardMoney.hmTotalInterestDuringRehab)} />
-            </Card>
-
-            <Card title="DSCR & Refi">
-              <OutputField label="ARV" value={formatCurrency(inputs.arv)} />
-              <OutputField label="Loan by LTV" value={formatCurrency(dscr.loanByLtv)} />
-              <OutputField label="Loan by DSCR" value={formatCurrency(dscr.loanByDscr)} />
-              <OutputField label="Final Loan Amount" value={formatCurrency(dscr.finalLoanAmount)} highlight />
-              <hr className="border-t border-gray-200" />
-              <OutputField label="DSCR Achieved" value={formatNumber(dscr.achievedDscr)} />
-              <OutputField label="Refi Closing Costs" value={formatCurrency(dscr.refiClosingCosts)} />
-              {dscr.achievedDscr < inputs.dscrRequired && (
-                <RiskFlag>Loan is DSCR-constrained. Cashflow is tight.</RiskFlag>
-              )}
-            </Card>
-
-            <Card title="Monthly Cash Flow Breakdown">
-              <OutputField label="Gross Scheduled Rent" value={formatCurrency(inputs.monthlyRent)} />
-              <OutputField label="Vacancy Loss" value={`-${formatCurrency(inputs.monthlyRent * inputs.vacancyRate)}`} />
-              <hr className="border-t border-gray-200" />
-              <OutputField label="Effective Gross Income" value={formatCurrency(dscr.effectiveGrossIncomeAnnual / 12)} />
-              <div className="text-sm text-gray-500 pt-2">- Operating Expenses</div>
-              <div className="pl-4 text-sm space-y-1">
-                <OutputField label="Taxes" value={`-${formatCurrency(inputs.taxesAnnual / 12)}`} />
-                <OutputField label="Insurance" value={`-${formatCurrency(inputs.insuranceAnnual / 12)}`} />
-                <OutputField label="Maintenance" value={`-${formatCurrency(inputs.monthlyRent * inputs.maintenancePercentOfRent)}`} />
-                <OutputField label="CapEx" value={`-${formatCurrency(inputs.monthlyRent * inputs.capexPercentOfRent)}`} />
-                <OutputField label="Management" value={`-${formatCurrency(inputs.monthlyRent * inputs.managementPercentOfRent)}`} />
-                <OutputField label="HOA" value={`-${formatCurrency(inputs.hoaMonthly)}`} />
-                <OutputField label="Utilities" value={`-${formatCurrency(inputs.utilitiesMonthlyOwner)}`} />
-              </div>
-              <hr className="border-t border-gray-200" />
-              <OutputField label="Net Operating Income (NOI)" value={formatCurrency(dscr.noiAnnual / 12)} />
-              <hr className="border-t border-gray-200" />
-              <OutputField label="Mortgage (P&I)" value={`-${formatCurrency(dscr.monthlyMortgagePayment)}`} />
-              <hr className="border-t-2 border-gray-300" />
-              <OutputField label="Total Monthly Cash Flow" value={formatCurrency(dscr.monthlyCashflowAfterDebt)} highlight />
-            </Card>
-
-            <Card title="Final Position">
-              <OutputField label="Total Cash Into Deal (before refi)" value={formatCurrency(hardMoney.totalCashIntoDealBeforeRefi)} />
-              <OutputField label="Cash Back to You at Refi" value={formatCurrency(dscr.netCashAtRefi)} />
-              <OutputField label="Cash Out vs. Cash In" value={formatPercent(dscr.refiCashOutReturn)} highlight />
-              <OutputField label="Your Cash Left in Deal" value={formatCurrency(dscr.cashLeftInDeal)} highlight />
-              <OutputField label="Your Equity Created" value={formatCurrency(dscr.equityAfterRefi)} />
-              <hr className="border-t border-gray-200" />
-              <OutputField label="Monthly Cashflow After Debt" value={formatCurrency(dscr.monthlyCashflowAfterDebt)} />
-              <OutputField label="Year 1 Cash-on-Cash Return" value={formatPercent(dscr.cashOnCashReturnYear1)} highlight />
-              {hardMoney.totalProjectCost > inputs.arv * 0.85 && (
-                <RiskFlag>All-in cost ({formatCurrency(hardMoney.totalProjectCost)}) is &gt; 85% of ARV.</RiskFlag>
-              )}
-              {dscr.cashLeftInDeal > 1 && (
-                <InfoFlag>You have {formatCurrency(dscr.cashLeftInDeal)} of your own cash in this deal.</InfoFlag>
-              )}
-            </Card>
-
-            <Card title="30-Year Cash Flow Projection">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs text-gray-500 uppercase bg-gray-100">
-                    <tr>
-                      <th className="px-4 py-2">Year</th>
-                      <th className="px-4 py-2 text-right">Rent</th>
-                      <th className="px-4 py-2 text-right">NOI (Annual)</th>
-                      <th className="px-4 py-2 text-right">Cash Flow (Mo)</th>
-                      <th className="px-4 py-2 text-right">Cum. Cash Flow</th>
-                      <th className="px-4 py-2 text-right">Cum. Equity</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {projections.years.map(p => (
-                      <tr key={p.year} className="border-b border-gray-200 last:border-b-0">
-                        <td className="px-4 py-2 font-medium">{p.year}</td>
-                        <td className="px-4 py-2 text-right">{formatCurrency(p.monthlyRent)}</td>
-                        <td className="px-4 py-2 text-right">{formatCurrency(p.noiAnnual)}</td>
-                        <td className={`px-4 py-2 text-right font-semibold ${p.monthlyCashflow > 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(p.monthlyCashflow)}</td>
-                        <td className={`px-4 py-2 text-right font-semibold ${p.cumulativeCashflow > 0 ? 'text-gray-700' : 'text-orange-600'}`}>{formatCurrency(p.cumulativeCashflow)}</td>
-                        <td className={`px-4 py-2 text-right font-bold text-blue-700`}>{formatCurrency(p.cumulativeEquity)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {chartData && (
-                <div className="relative mt-4">
-                  <svg
-                    width="100%"
-                    viewBox={`0 0 ${chartConfig.width} ${chartConfig.height}`}
-                    onMouseMove={handleMouseOver}
-                    onMouseLeave={() => setHoverData(null)}
+        <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+          <Card title="Property Images">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {inputs.imageUrls.map((url, index) => (
+                <div key={index} className="relative">
+                  <input
+                    id={`imageUpload${index}`}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageFileChange(index, e.target.files ? e.target.files[0] : null)}
+                    className="sr-only"
+                  />
+                  <label
+                    htmlFor={`imageUpload${index}`}
+                    className="cursor-pointer aspect-square rounded-lg flex items-center justify-center overflow-hidden border-2 border-dashed border-slate-600/70 hover:border-cyan-400 transition-colors bg-slate-800/60"
                   >
-                    {/* Y-Axis Grid Lines */}
-                    {Array.from({ length: 5 }).map((_, i) => (
+                    {url ? (
+                      <>
+                        <img src={url} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          onClick={(e) => { e.preventDefault(); handleImageFileChange(index, null); }}
+                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 text-xs leading-none hover:bg-black/80"
+                          aria-label="Remove image"
+                        >
+                          &#x2715;
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-slate-400 text-sm">Upload {index + 1}</span>
+                    )}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Input Column */}
+            <div id="pdf-input-column" className="space-y-6">
+              {Object.entries(inputSections).map(([title, fields]) => (
+                <Card key={title} title={title}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {title === 'DSCR Refi' && (
+                      <div className="sm:col-span-2 flex flex-col gap-2">
+                        <span className="hm-label">Loan Sizing Method</span>
+                        <div className="hm-pills">
+                          <button
+                            type="button"
+                            onClick={() => handleLoanSizingChange('ltv')}
+                            className={`hm-pill ${inputs.loanSizingMethod === 'ltv' ? 'active' : ''}`}
+                          >
+                            By LTV
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleLoanSizingChange('dscr')}
+                            className={`hm-pill ${inputs.loanSizingMethod === 'dscr' ? 'active' : ''}`}
+                          >
+                            By DSCR
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {fields.map((field) => (
+                      <div key={field.name} className={fields.length % 2 !== 0 && fields.indexOf(field) === fields.length - 1 ? 'sm:col-span-2' : ''}>
+                        <InputField
+                          label={field.label}
+                          name={field.name as keyof DealInputs}
+                          value={inputs[field.name as keyof DealInputs]}
+                          onChange={(e) => {
+                            const { name, value } = e.target;
+                            const isPercent = field.isPercent;
+                            const numericValue = parseFloat(value);
+                            setInputs((prev) => ({
+                              ...prev,
+                              [name]: isPercent ? (isNaN(numericValue) ? 0 : numericValue / 100) : (isNaN(numericValue) ? 0 : numericValue),
+                            }));
+                          }}
+                          isPercent={field.isPercent}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Output Column */}
+            <div id="pdf-output-column" className="space-y-6 lg:col-span-1">
+              <Card title="Initial Investment Summary">
+                <OutputField label="Purchase Loan (80% LTV)" value={formatCurrency(hardMoney.hmPurchaseLoanAmount)} />
+                <OutputField label="Rehab Loan (100% financed)" value={formatCurrency(hardMoney.hmRehabLoanAmount)} />
+                <OutputField label="Total Hard Money Loan" value={formatCurrency(hardMoney.hmTotalLoanAmount)} />
+                <hr className="border-slate-800 my-2" />
+                <OutputField label="Your Down Payment" value={formatCurrency(hardMoney.hmDownPayment)} />
+                <OutputField label="Total Cash to Close" value={formatCurrency(hardMoney.cashToClose)} />
+                <hr className="border-slate-800 my-2" />
+                <OutputField label="Monthly Interest (IO Only)" value={formatCurrency(hardMoney.hmMonthlyInterestOnly)} />
+                <OutputField label="Total Interest During Rehab" value={formatCurrency(hardMoney.hmTotalInterestDuringRehab)} />
+              </Card>
+
+              <Card title="Refinance Summary (DSCR Loan)">
+                <OutputField label="ARV" value={formatCurrency(inputs.arv)} />
+                <OutputField label="Max Loan Allowed by LTV" value={formatCurrency(dscr.loanByLtv)} />
+                <OutputField label="Max Loan Allowed by DSCR" value={formatCurrency(dscr.loanByDscr)} />
+                <OutputField label="Approved Loan Amount" value={formatCurrency(dscr.finalLoanAmount)} highlight />
+                <hr className="border-slate-800 my-2" />
+                <OutputField label="Actual DSCR" value={formatNumber(dscr.achievedDscr)} />
+                <OutputField label="Refinance Closing Costs" value={formatCurrency(dscr.refiClosingCosts)} />
+                {dscr.achievedDscr < inputs.dscrRequired && (
+                  <RiskFlag>Loan limited by DSCR — income too tight for full leverage.</RiskFlag>
+                )}
+              </Card>
+
+              <Card title="Monthly Cashflow (Investor View)">
+                <OutputField label="Rent Collected" value={formatCurrency(inputs.monthlyRent)} />
+                <OutputField label="Vacancy Adjustment" value={`-${formatCurrency(inputs.monthlyRent * inputs.vacancyRate)}`} />
+                <hr className="border-slate-800 my-2" />
+                <OutputField label="Effective Income After Vacancy" value={formatCurrency(dscr.effectiveGrossIncomeAnnual / 12)} />
+                <div className="text-sm text-slate-400 pt-2">- Operating Expenses</div>
+                <div className="pl-4 text-sm space-y-1">
+                  <OutputField label="Taxes" value={`-${formatCurrency(inputs.taxesAnnual / 12)}`} />
+                  <OutputField label="Insurance" value={`-${formatCurrency(inputs.insuranceAnnual / 12)}`} />
+                  <OutputField label="Maintenance" value={`-${formatCurrency(inputs.monthlyRent * inputs.maintenancePercentOfRent)}`} />
+                  <OutputField label="CapEx" value={`-${formatCurrency(inputs.monthlyRent * inputs.capexPercentOfRent)}`} />
+                  <OutputField label="Management" value={`-${formatCurrency(inputs.monthlyRent * inputs.managementPercentOfRent)}`} />
+                  <OutputField label="HOA" value={`-${formatCurrency(inputs.hoaMonthly)}`} />
+                  <OutputField label="Utilities" value={`-${formatCurrency(inputs.utilitiesMonthlyOwner)}`} />
+                </div>
+                <hr className="border-slate-800 my-2" />
+                <OutputField label="NOI (Before Debt)" value={formatCurrency(dscr.noiAnnual / 12)} />
+                <hr className="border-slate-800 my-2" />
+                <OutputField label="Loan Payment (P&I)" value={`-${formatCurrency(dscr.monthlyMortgagePayment)}`} />
+                <hr className="border-slate-700 my-2" />
+                <OutputField label="Net Cashflow (After Debt)" value={formatCurrency(dscr.monthlyCashflowAfterDebt)} highlight />
+              </Card>
+
+              <Card title="Investor Returns Summary">
+                <OutputField label="Total Cash Invested" value={formatCurrency(hardMoney.totalCashIntoDealBeforeRefi)} />
+                <OutputField label="Cash Returned at Refi" value={formatCurrency(dscr.netCashAtRefi)} />
+                <OutputField label="Return on Cash at Refi" value={formatPercent(dscr.refiCashOutReturn)} highlight />
+                <OutputField label="Cash Remaining in Deal" value={formatCurrency(dscr.cashLeftInDeal)} highlight />
+                <OutputField label="Equity Created" value={formatCurrency(dscr.equityAfterRefi)} />
+                <hr className="border-slate-800 my-2" />
+                <OutputField label="Monthly Cashflow After Debt" value={formatCurrency(dscr.monthlyCashflowAfterDebt)} />
+                <OutputField label="Cash-on-Cash: Year 1" value={formatPercent(dscr.cashOnCashReturnYear1)} highlight />
+                {hardMoney.totalProjectCost > inputs.arv * 0.85 && (
+                  <RiskFlag>Warning: Your total project cost is high relative to ARV.</RiskFlag>
+                )}
+                {dscr.cashLeftInDeal > 1 && (
+                  <InfoFlag>This amount remains invested after refinance.</InfoFlag>
+                )}
+              </Card>
+
+              {/* Appraisal / Bank Underwriting Summary */}
+              <Card title="Appraisal / Bank Underwriting Summary">
+                <OutputField label="NOI (Annual)" value={formatCurrency(dscr.noiAnnual)} />
+                <OutputField label="Achieved DSCR" value={formatNumber(dscr.achievedDscr)} />
+                <OutputField
+                  label="Implied Cap Rate"
+                  value={formatPercent(dscr.noiAnnual / inputs.arv)}
+                />
+                <OutputField
+                  label="Income Approach Value (NOI / Market Cap Rate)"
+                  value={formatCurrency(dscr.noiAnnual / 0.065)}
+                />
+                <div className="pt-2">
+                  <div className="text-slate-400 text-xs font-semibold pb-1">DSCR Sensitivity (-5% to +5% Rent)</div>
+                  <OutputField
+                    label="DSCR at -5% Rent"
+                    value={formatNumber((dscr.noiAnnual * 0.95) / dscr.annualDebtService)}
+                  />
+                  <OutputField
+                    label="DSCR at +5% Rent"
+                    value={formatNumber((dscr.noiAnnual * 1.05) / dscr.annualDebtService)}
+                  />
+                </div>
+                {/* Conservative underwriting flags */}
+                {dscr.achievedDscr < inputs.dscrRequired && (
+                  <RiskFlag>DSCR falls below lender requirement under current NOI.</RiskFlag>
+                )}
+                {(dscr.noiAnnual / inputs.arv) < 0.055 && (
+                  <RiskFlag>Cap rate is unusually low — valuation may be aggressive.</RiskFlag>
+                )}
+              </Card>
+
+              <Card title="30-Year Cash Flow Projection">
+                <div className="overflow-x-auto">
+                  <table className="hm-table text-sm">
+                    <thead>
+                      <tr>
+                        <th>Year</th>
+                        <th>Rent</th>
+                        <th>NOI (Annual)</th>
+                        <th>Cash Flow (Mo)</th>
+                        <th>Cum. Cash Flow</th>
+                        <th>Cum. Equity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {projections.years.map((p) => (
+                        <tr key={p.year}>
+                          <td className="font-medium text-slate-200">{p.year}</td>
+                          <td>{formatCurrency(p.monthlyRent)}</td>
+                          <td>{formatCurrency(p.noiAnnual)}</td>
+                          <td className={p.monthlyCashflow > 0 ? 'text-emerald-400' : 'text-amber-400'}>{formatCurrency(p.monthlyCashflow)}</td>
+                          <td className={p.cumulativeCashflow > 0 ? 'text-slate-200' : 'text-orange-300'}>{formatCurrency(p.cumulativeCashflow)}</td>
+                          <td className="text-cyan-300 font-semibold">{formatCurrency(p.cumulativeEquity)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {chartData && (
+                  <div className="relative mt-4 hm-chart">
+                    <svg
+                      width="100%"
+                      viewBox={`0 0 ${chartConfig.width} ${chartConfig.height}`}
+                      onMouseMove={handleMouseOver}
+                      onMouseLeave={() => setHoverData(null)}
+                    >
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <line
+                          key={i}
+                          x1={chartConfig.padding}
+                          y1={chartConfig.padding + (i / 4) * (chartConfig.height - chartConfig.padding * 2)}
+                          x2={chartConfig.width - chartConfig.padding}
+                          y2={chartConfig.padding + (i / 4) * (chartConfig.height - chartConfig.padding * 2)}
+                          stroke="#1f2937"
+                          strokeWidth="1"
+                        />
+                      ))}
                       <line
-                        key={i}
                         x1={chartConfig.padding}
-                        y1={chartConfig.padding + (i / 4) * (chartConfig.height - chartConfig.padding * 2)}
+                        y1={chartConfig.height - chartConfig.padding}
                         x2={chartConfig.width - chartConfig.padding}
-                        y2={chartConfig.padding + (i / 4) * (chartConfig.height - chartConfig.padding * 2)}
-                        stroke="#e5e7eb"
+                        y2={chartConfig.height - chartConfig.padding}
+                        stroke="#334155"
                         strokeWidth="1"
                       />
-                    ))}
-                    {/* X-Axis */}
-                    <line
-                      x1={chartConfig.padding}
-                      y1={chartConfig.height - chartConfig.padding}
-                      x2={chartConfig.width - chartConfig.padding}
-                      y2={chartConfig.height - chartConfig.padding}
-                      stroke="#d1d5db"
-                      strokeWidth="1"
-                    />
-                    {/* Data Paths */}
-                    <path d={chartData.getPath('cumulativeCashflow')} fill="none" stroke="#f59e0b" strokeWidth="2" />
-                    <path d={chartData.getPath('cumulativeEquity')} fill="none" stroke="#1d4ed8" strokeWidth="2" />
+                      <path d={chartData.getPath('cumulativeCashflow')} fill="none" stroke="#f59e0b" strokeWidth="2.5" />
+                      <path d={chartData.getPath('cumulativeEquity')} fill="none" stroke="#06b6d4" strokeWidth="2.5" />
 
-                    {/* Hover Indicator */}
-                    {hoverData && (
-                      <g>
-                        <line
-                          x1={hoverData.x}
-                          y1={chartConfig.padding}
-                          x2={hoverData.x}
-                          y2={chartConfig.height - chartConfig.padding}
-                          stroke="#9ca3af"
-                          strokeWidth="1"
-                          strokeDasharray="4 4"
-                        />
-                        <foreignObject x={hoverData.x > chartConfig.width / 2 ? hoverData.x - 130 : hoverData.x + 10} y={chartConfig.padding} width="120" height="80">
-                           <div className="bg-white/80 backdrop-blur-sm border border-gray-300 rounded-md p-2 text-xs shadow-lg">
+                      {hoverData && (
+                        <g>
+                          <line
+                            x1={hoverData.x}
+                            y1={chartConfig.padding}
+                            x2={hoverData.x}
+                            y2={chartConfig.height - chartConfig.padding}
+                            stroke="#94a3b8"
+                            strokeWidth="1"
+                            strokeDasharray="4 4"
+                          />
+                          <foreignObject x={hoverData.x > chartConfig.width / 2 ? hoverData.x - 140 : hoverData.x + 10} y={chartConfig.padding} width="130" height="90">
+                            <div className="bg-slate-900/90 border border-slate-700 rounded-md p-2 text-xs shadow-lg text-slate-100">
                               <div className="font-bold">Year {hoverData.year}</div>
-                              <div><span className="font-semibold text-blue-700">Equity:</span> {formatCurrency(hoverData.cumulativeEquity)}</div>
-                              <div><span className="font-semibold text-amber-500">Cash:</span> {formatCurrency(hoverData.cumulativeCashflow)}</div>
-                           </div>
-                        </foreignObject>
-                      </g>
-                    )}
-                  </svg>
-                  <div className="flex justify-center gap-4 text-xs mt-2">
-                      <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-blue-700"></div>
-                          <span>Cumulative Equity</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                          <span>Cumulative Cash Flow</span>
-                      </div>
+                              <div><span className="text-cyan-300 font-semibold">Equity:</span> {formatCurrency(hoverData.cumulativeEquity)}</div>
+                              <div><span className="text-amber-300 font-semibold">Cash:</span> {formatCurrency(hoverData.cumulativeCashflow)}</div>
+                            </div>
+                          </foreignObject>
+                        </g>
+                      )}
+                    </svg>
+                    <div className="hm-chart-legend mt-2">
+                      <span><span className="hm-legend-dot" style={{ background: '#06b6d4' }} /> Cumulative Equity</span>
+                      <span><span className="hm-legend-dot" style={{ background: '#f59e0b' }} /> Cumulative Cash Flow</span>
+                    </div>
                   </div>
-                </div>
-              )}
-            </Card>
+                )}
+              </Card>
+            </div>
           </div>
         </div>
       </div>

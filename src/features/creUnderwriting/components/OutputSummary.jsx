@@ -7,43 +7,65 @@ const fmtCurrency = (value) =>
     maximumFractionDigits: 0,
   }).format(Number.isFinite(value) ? value : 0);
 
-const fmtPercent = (value, digits = 1) =>
-  `${(Number.isFinite(value) ? value * 100 : 0).toFixed(digits)}%`;
+const fmtPercent = (value, digits = 1) => `${((Number.isFinite(value) ? value : 0) * 100).toFixed(digits)}%`;
+const fmtNumber = (value, digits = 2) => (Number.isFinite(value) ? value.toFixed(digits) : '0.00');
 
-const fmtNumber = (value, digits = 2) =>
-  Number.isFinite(value) ? value.toFixed(digits) : '0.00';
-
-export default function OutputSummary({ scenarioResult, valueAddResult, model, activeScenarioKey }) {
+export default function OutputSummary({ scenarioResult, valueAddResult, activeScenarioKey }) {
   const summary = scenarioResult?.summary || {};
-  const dscrMin = Number(model?.debt?.dscrMin) || 0;
-  const dscrYear1 = Number(summary.dscrYear1) || 0;
-  const vacancyRate =
-    (Number(model?.property?.vacancyRatePct) || 0) +
-    (Number(model?.scenarios?.[activeScenarioKey]?.vacancyAdjPct) || 0);
   const valueAdd = valueAddResult || {};
+  const scenarioLabel = activeScenarioKey
+    ? activeScenarioKey.charAt(0).toUpperCase() + activeScenarioKey.slice(1)
+    : 'Base';
 
   const warnings = [];
-  if (dscrYear1 < dscrMin) {
-    warnings.push(`DSCR ${fmtNumber(dscrYear1)} is below min ${fmtNumber(dscrMin)}`);
+  if ((summary.dscrMin || 0) > 0 && (summary.dscrYear1 || 0) < summary.dscrMin) {
+    warnings.push(`DSCR ${fmtNumber(summary.dscrYear1)} is below min ${fmtNumber(summary.dscrMin)}.`);
   }
-  if (vacancyRate > 15) {
-    warnings.push(`Vacancy at ${vacancyRate.toFixed(1)}% exceeds 15%`);
+  if ((summary.vacancyApplied || 0) > 0.15) {
+    warnings.push(`Vacancy at ${fmtPercent(summary.vacancyApplied, 1)} exceeds 15%.`);
+  }
+  if (
+    (valueAdd.stabilizedValue || 0) &&
+    (valueAdd.totalCostBasis || 0) &&
+    valueAdd.stabilizedValue < valueAdd.totalCostBasis
+  ) {
+    warnings.push('Stabilized value is below total project cost - value-add may destroy equity.');
   }
 
-  const stats = [
+  const coreUnderwriting = [
     { label: 'NOI Year 1', value: fmtCurrency(summary.noiYear1) },
-    { label: 'DSCR Year 1', value: fmtNumber(dscrYear1) },
+    { label: 'Stabilized NOI', value: fmtCurrency(summary.noiStabilized) },
+    { label: 'DSCR Year 1', value: fmtNumber(summary.dscrYear1) },
     { label: 'Min DSCR', value: fmtNumber(summary.minDscr) },
+    { label: 'Vacancy Applied', value: fmtPercent(summary.vacancyApplied) },
+    { label: 'Implied Cap Rate', value: fmtPercent(summary.impliedCapRate) },
+  ];
+
+  const loanSizing = [
     { label: 'Underwritten Loan', value: fmtCurrency(summary.loanAmount) },
     { label: 'Max Loan by DSCR', value: fmtCurrency(summary.maxLoanByDSCR) },
     { label: 'Max Price by DSCR', value: fmtCurrency(summary.maxPriceByDSCR) },
     { label: 'Equity Required', value: fmtCurrency(summary.equityRequired) },
-    { label: 'Cash-on-Cash Year 1', value: fmtPercent(summary.cashOnCashYear1) },
-    { label: 'Stabilized Rent', value: fmtCurrency(valueAdd.stabilizedRent) },
+    { label: 'Debt Service Year 1', value: fmtCurrency(summary.debtServiceYear1) },
+  ];
+
+  const valueAddMetrics = [
+    { label: 'Stabilized GPR', value: fmtCurrency(valueAdd.stabilizedGPR) },
     { label: 'Stabilized NOI', value: fmtCurrency(valueAdd.stabilizedNOI) },
     { label: 'Stabilized Value', value: fmtCurrency(valueAdd.stabilizedValue) },
-    { label: 'Max Refinance Loan', value: fmtCurrency(valueAdd.refinanceLoan) },
+  ];
+
+  const refinanceOutcome = [
+    { label: 'Refi Loan', value: fmtCurrency(valueAdd.refinanceLoan) },
     { label: 'Cash-Out After Refi', value: fmtCurrency(valueAdd.cashOut) },
+    { label: 'Total Cost Basis', value: fmtCurrency(valueAdd.totalCostBasis) },
+  ];
+
+  const returnMetrics = [
+    { label: 'NPV', value: fmtCurrency(summary.npv) },
+    { label: 'IRR', value: fmtPercent(summary.irr) },
+    { label: 'Cash-on-Cash Year 1', value: fmtPercent(summary.cashOnCashYear1) },
+    { label: 'Average Cash-on-Cash', value: fmtPercent(summary.cashOnCashAvg) },
   ];
 
   return (
@@ -51,9 +73,7 @@ export default function OutputSummary({ scenarioResult, valueAddResult, model, a
       <div className="section-header">
         <div>
           <h3 className="section-title">Output Summary</h3>
-          <p className="section-subtitle">
-            Viewing {activeScenarioKey.charAt(0).toUpperCase() + activeScenarioKey.slice(1)} scenario.
-          </p>
+          <p className="section-subtitle">Viewing {scenarioLabel} scenario.</p>
         </div>
       </div>
 
@@ -65,13 +85,63 @@ export default function OutputSummary({ scenarioResult, valueAddResult, model, a
         </div>
       )}
 
+      <div className="stat-section-header">Core Underwriting</div>
       <div className="stat-grid">
-        {stats.map((stat) => (
+        {coreUnderwriting.map((stat) => (
           <div className="stat-card" key={stat.label}>
             <div className="stat-label">{stat.label}</div>
             <div className="stat-value">{stat.value}</div>
           </div>
         ))}
+      </div>
+
+      <div className="stat-section-header">Loan Sizing</div>
+      <div className="stat-grid">
+        {loanSizing.map((stat) => (
+          <div className="stat-card" key={stat.label}>
+            <div className="stat-label">{stat.label}</div>
+            <div className="stat-value">{stat.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="stat-section-header">Value-Add Metrics</div>
+      <div className="stat-grid">
+        {valueAddMetrics.map((stat) => (
+          <div className="stat-card" key={stat.label}>
+            <div className="stat-label">{stat.label}</div>
+            <div className="stat-value">{stat.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="stat-section-header">Refinance Outcome</div>
+      <div className="stat-grid">
+        {refinanceOutcome.map((stat) => (
+          <div className="stat-card" key={stat.label}>
+            <div className="stat-label">{stat.label}</div>
+            <div className="stat-value">{stat.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="stat-section-header">Return Metrics</div>
+      <div className="stat-grid">
+        {returnMetrics.map((stat) => (
+          <div className="stat-card" key={stat.label}>
+            <div className="stat-label">{stat.label}</div>
+            <div className="stat-value">{stat.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="deal-verdict">
+        <h4>Deal Verdict</h4>
+        <p>
+          {(summary.dscrYear1 || 0) >= (summary.dscrMin || 0) && (summary.vacancyApplied || 0) <= 0.15
+            ? 'This deal meets lender standards and appears financeable based on current underwriting.'
+            : 'This deal shows risk factors - review DSCR, vacancy, and stabilized value before proceeding.'}
+        </p>
       </div>
     </div>
   );

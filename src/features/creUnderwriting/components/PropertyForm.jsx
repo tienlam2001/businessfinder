@@ -74,6 +74,17 @@ export default function PropertyForm({ property, onChange }) {
             step="1"
           />
         </div>
+        <div className="input-group">
+          <label className="input-label">Discount Rate (%)</label>
+          <input
+            className="modern-input"
+            type="number"
+            value={property.discountRatePct || 0}
+            onChange={handleChange('discountRatePct')}
+            min="0"
+            step="0.1"
+          />
+        </div>
       </div>
     </div>
   );

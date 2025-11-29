@@ -9,8 +9,8 @@ const fmtCurrency = (value) =>
 
 const fmtNumber = (value) => (Number.isFinite(value) ? value.toFixed(2) : '0.00');
 
-export default function StabilizedCashflowTable({ valueAddResult }) {
-  const rows = valueAddResult?.stabilizedCashflows || [];
+export default function StabilizedCashflowTable({ stabilizedResult }) {
+  const rows = stabilizedResult?.rows || [];
   const titleNote =
     rows.length > 0 ? `Years 1-${rows.length} post-stabilization` : 'Add assumptions to view projection';
 
@@ -39,15 +39,15 @@ export default function StabilizedCashflowTable({ valueAddResult }) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.year}>
-                <td>{row.year}</td>
-                <td>{fmtCurrency(row.rent)}</td>
-                <td>{fmtCurrency(row.egi)}</td>
-                <td>{fmtCurrency(row.expenses)}</td>
-                <td>{fmtCurrency(row.noi)}</td>
-                <td>{fmtCurrency(row.debtService)}</td>
-                <td>{fmtCurrency(row.cashflowToEquity)}</td>
-                <td>{fmtNumber(row.dscr)}</td>
-              </tr>
+              <td>{row.year}</td>
+              <td>{fmtCurrency(row.rent)}</td>
+              <td>{fmtCurrency(row.egi)}</td>
+              <td>{fmtCurrency(row.opEx ?? row.expenses)}</td>
+              <td>{fmtCurrency(row.noi)}</td>
+              <td>{fmtCurrency(row.debtService)}</td>
+              <td>{fmtCurrency(row.cashflowToEquity)}</td>
+              <td>{fmtNumber(row.dscr)}</td>
+            </tr>
             ))}
             {rows.length === 0 && (
               <tr>

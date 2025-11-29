@@ -1,5 +1,7 @@
-// Unified underwriting engine for CRE retail
+// Central underwriting engine for CRE retail - all math lives here.
+
 export function normalizeNumber(value) {
+  if (value === null || value === undefined) return 0;
   if (typeof value === 'string') {
     const cleaned = value.replace(/[^0-9.-]/g, '');
     const parsed = parseFloat(cleaned);
@@ -10,296 +12,332 @@ export function normalizeNumber(value) {
 }
 
 function mortgagePayment(principal, annualRatePct, termYears) {
-  const ratePct = normalizeNumber(annualRatePct);
-  const monthlyRate = ratePct / 100 / 12;
-  const n = Math.max(1, Math.floor(normalizeNumber(termYears)) * 12);
-  if (principal <= 0) return 0;
-  if (monthlyRate === 0) return principal / n;
-  const factor = Math.pow(1 + monthlyRate, n);
-  return principal * (monthlyRate * factor) / (factor - 1);
+  const loanAmount = normalizeNumber(principal);
+  if (loanAmount <= 0) return 0;
+  const months = Math.max(1, Math.floor(normalizeNumber(termYears)) * 12);
+  const monthlyRate = normalizeNumber(annualRatePct) / 100 / 12;
+  if (monthlyRate === 0) return loanAmount / months;
+  const factor = Math.pow(1 + monthlyRate, months);
+  return loanAmount * ((monthlyRate * factor) / (factor - 1));
 }
 
-function annualDebtService(loanAmount, debt, yearIndex = 0) {
-  if (!loanAmount || loanAmount <= 0) return 0;
-  const ratePct = normalizeNumber(debt?.interestRatePct);
-  const ioYears = Math.max(0, Math.floor(normalizeNumber(debt?.ioYears)));
-  if (yearIndex < ioYears) {
-    return loanAmount * (ratePct / 100);
-  }
-  const paymentMonthly = mortgagePayment(
-    loanAmount,
-    ratePct,
-    Math.max(1, normalizeNumber(debt?.amortYears))
-  );
-  return paymentMonthly * 12;
-}
+function buildDebtServiceSchedule(loanAmount, debtConfig = {}, holdYears) {
+  const scheduleYears = Math.max(1, Math.floor(normalizeNumber(holdYears)) || 1);
+  const schedule = Array.from({ length: scheduleYears }, () => 0);
+  const principal = normalizeNumber(loanAmount);
+  if (principal <= 0) return schedule;
 
-function buildDebtServiceSchedule(loanAmount, debt, holdYears) {
-  const years = Math.max(1, holdYears);
-  const schedule = [];
-  for (let i = 0; i < years; i++) {
-    schedule.push(annualDebtService(loanAmount, debt, i));
+  const ratePct = normalizeNumber(debtConfig.interestRatePct);
+  const amortYears = Math.max(1, Math.floor(normalizeNumber(debtConfig.amortYears)) || 1);
+  const ioYears = Math.max(0, Math.floor(normalizeNumber(debtConfig.ioYears)) || 0);
+  const amortizationTerm = Math.max(1, amortYears - ioYears > 0 ? amortYears - ioYears : amortYears);
+  const amortizingPayment = mortgagePayment(principal, ratePct, amortizationTerm) * 12;
+
+  for (let i = 0; i < scheduleYears; i++) {
+    if (i < ioYears) {
+      schedule[i] = principal * (ratePct / 100);
+    } else {
+      schedule[i] = amortizingPayment;
+    }
   }
+
   return schedule;
 }
 
-function buildRentSchedule(model, scenarioKey) {
-  const holdYears = Math.max(1, Math.floor(normalizeNumber(model?.property?.holdPeriodYears)) || 1);
-  const scenario = model?.scenarios?.[scenarioKey] || {};
-  const rentGrowthAdj = normalizeNumber(scenario.rentGrowthAdjPct) / 100;
-  const schedule = Array.from({ length: holdYears }, () => 0);
+function calculateNPV(cashflows = [], discountRatePct) {
+  const r = normalizeNumber(discountRatePct) / 100;
+  if (!cashflows.length || r <= -1) return 0;
+  return cashflows.reduce((acc, cf, idx) => acc + (cf || 0) / Math.pow(1 + r, idx), 0);
+}
 
-  (model?.tenants || []).forEach((tenant) => {
+function calculateIRR(cashflows = []) {
+  if (!cashflows.length) return 0;
+  const hasPos = cashflows.some((v) => v > 0);
+  const hasNeg = cashflows.some((v) => v < 0);
+  if (!hasPos || !hasNeg) return 0;
+
+  const npvAt = (rate) => cashflows.reduce((acc, cf, idx) => acc + (cf || 0) / Math.pow(1 + rate, idx), 0);
+
+  let low = -0.99;
+  let high = 5; // allow up to 500% IRR for edge cases
+  let npvLow = npvAt(low);
+  let npvHigh = npvAt(high);
+  if (npvLow * npvHigh > 0) return 0;
+
+  for (let i = 0; i < 100; i++) {
+    const mid = (low + high) / 2;
+    const npv = npvAt(mid);
+    if (Math.abs(npv) < 1e-6) return mid;
+    if (npvLow * npv < 0) {
+      high = mid;
+      npvHigh = npv;
+    } else {
+      low = mid;
+      npvLow = npv;
+    }
+  }
+
+  return (low + high) / 2;
+}
+
+function sizeLoanByDSCR(noiYear1, debtConfig = {}, benchmarkPrice = 0) {
+  const dscrMin = normalizeNumber(debtConfig.dscrMin);
+  if (noiYear1 <= 0 || dscrMin <= 0) return 0;
+
+  const ratePct = normalizeNumber(debtConfig.interestRatePct);
+  const amortYears = Math.max(1, Math.floor(normalizeNumber(debtConfig.amortYears)) || 1);
+  const targetDebtService = noiYear1 / dscrMin;
+  const paymentForLoan = (loan) => mortgagePayment(loan, ratePct, amortYears) * 12;
+
+  let low = 0;
+  let high = Math.max(benchmarkPrice || 0, targetDebtService * amortYears, 1);
+  while (paymentForLoan(high) < targetDebtService && high < Number.MAX_SAFE_INTEGER / 4) {
+    high *= 2;
+  }
+
+  for (let i = 0; i < 60; i++) {
+    const mid = (low + high) / 2;
+    const ds = paymentForLoan(mid);
+    if (Math.abs(ds - targetDebtService) < 1e-4) return mid;
+    if (ds > targetDebtService) high = mid;
+    else low = mid;
+  }
+
+  return (low + high) / 2;
+}
+
+function runScenario(model = {}, scenarioKey = 'base') {
+  const property = model.property || {};
+  const tenants = Array.isArray(model.tenants) ? model.tenants : [];
+  const expenses = model.expenses || {};
+  const debt = model.debt || {};
+  const scenario = (model.scenarios && model.scenarios[scenarioKey]) || {};
+
+  const holdYears = Math.max(1, Math.floor(normalizeNumber(property.holdPeriodYears)) || 1);
+  const dscrMin = normalizeNumber(debt.dscrMin);
+  const rentAdjPct = normalizeNumber(scenario.rentGrowthAdjPct);
+  const expenseAdjPct = normalizeNumber(scenario.expenseGrowthAdjPct);
+  const vacancyAdjPct = normalizeNumber(scenario.vacancyAdjPct);
+
+  const gprByYear = Array.from({ length: holdYears }, () => 0);
+  tenants.forEach((tenant) => {
     const sqft = normalizeNumber(tenant.sqft);
-    const rentPsf = normalizeNumber(tenant.baseRentPsfYear);
-    const rentYearOne = sqft * rentPsf;
-    const baseEscalation = normalizeNumber(tenant.annualEscalationPct) / 100;
-    const growthRate = baseEscalation + rentGrowthAdj;
+    const baseRentPsf = normalizeNumber(tenant.baseRentPsfYear);
+    const rentYear1 = sqft * baseRentPsf;
+    const escalation = normalizeNumber(tenant.annualEscalationPct) / 100;
     const startYear = Math.max(1, Math.floor(normalizeNumber(tenant.startYear) || 1));
     const leaseTermYears = Math.max(1, Math.floor(normalizeNumber(tenant.leaseTermYears) || holdYears));
 
     for (let i = 0; i < holdYears; i++) {
       const yearNumber = i + 1;
-      if (yearNumber < startYear) continue;
-      const yearsSinceStart = yearNumber - startYear;
-      const growthYears = Math.min(Math.max(0, yearsSinceStart), leaseTermYears - 1);
-      const rentThisYear = rentYearOne * Math.pow(1 + growthRate, growthYears);
-      schedule[i] += rentThisYear;
+      if (yearNumber < startYear || yearNumber >= startYear + leaseTermYears) continue;
+      const growthYears = yearNumber - startYear;
+      const rentThisYear = rentYear1 * Math.pow(1 + escalation, growthYears) * (1 + rentAdjPct / 100);
+      gprByYear[i] += rentThisYear;
     }
   });
 
-  return schedule;
-}
+  let effectiveVacancyPct = normalizeNumber(property.vacancyRatePct) + vacancyAdjPct;
+  effectiveVacancyPct = Math.min(30, Math.max(0, effectiveVacancyPct));
+  const egiByYear = gprByYear.map((gpr) => gpr * (1 - effectiveVacancyPct / 100));
 
-function applyVacancy(gprByYear, vacancyPct) {
-  const vacancyRate = Math.min(1, Math.max(0, normalizeNumber(vacancyPct) / 100));
-  return gprByYear.map((gpr) => gpr * (1 - vacancyRate));
-}
-
-function buildExpenseSchedule(model, scenarioKey, egiByYear = []) {
-  const scenario = model?.scenarios?.[scenarioKey] || {};
-  const expenseAdj = 1 + normalizeNumber(scenario.expenseGrowthAdjPct) / 100;
-  const expenses = model?.expenses || {};
-  const holdYears = egiByYear.length || Math.max(1, Math.floor(normalizeNumber(model?.property?.holdPeriodYears)) || 1);
-  const fixedBase = (
+  const baseOpEx =
     normalizeNumber(expenses.taxes) +
     normalizeNumber(expenses.insurance) +
     normalizeNumber(expenses.repairsMaintenance) +
     normalizeNumber(expenses.utilities) +
-    normalizeNumber(expenses.otherExpenses)
-  ) * expenseAdj;
-
+    normalizeNumber(expenses.otherExpenses);
+  const opExFixedScenario = baseOpEx * (1 + expenseAdjPct / 100);
   const mgmtPct = normalizeNumber(expenses.managementPctOfEGI) / 100;
+  const opExTotalByYear = egiByYear.map((egi) => opExFixedScenario + egi * mgmtPct);
+  const noiByYear = egiByYear.map((egi, idx) => egi - (opExTotalByYear[idx] || 0));
 
-  const schedule = [];
-  for (let i = 0; i < holdYears; i++) {
-    const egi = egiByYear[i] ?? 0;
-    const managementFee = egi * mgmtPct;
-    schedule.push(fixedBase + managementFee);
-  }
-  return schedule;
-}
-
-function calculateNOI(egiByYear, expensesByYear) {
-  return egiByYear.map((egi, idx) => egi - (expensesByYear[idx] ?? 0));
-}
-
-function findMaxLoanByDSCR(noiYear1, debt, priceBenchmark) {
-  const dscrTarget = normalizeNumber(debt?.dscrMin);
-  if (noiYear1 <= 0 || dscrTarget <= 0) return 0;
-
-  const targetDebtService = noiYear1 / dscrTarget;
-  const dsForLoan = (loan) => annualDebtService(loan, debt, 0);
-
-  let low = 0;
-  let high = Math.max(normalizeNumber(priceBenchmark), targetDebtService * 2, 1);
-  for (let i = 0; i < 20; i++) {
-    if (dsForLoan(high) >= targetDebtService) break;
-    high *= 2;
-  }
-
-  for (let i = 0; i < 40; i++) {
-    const mid = (low + high) / 2;
-    const ds = dsForLoan(mid);
-    if (Math.abs(ds - targetDebtService) < 1e-4) return mid;
-    if (ds > targetDebtService) high = mid;
-    else low = mid;
-  }
-  return (low + high) / 2;
-}
-
-function calculateMaxPriceByDSCR(maxLoanByDSCR, debt) {
-  const ltv = normalizeNumber(debt?.ltvPct) / 100;
-  if (ltv <= 0) return 0;
-  return maxLoanByDSCR / ltv;
-}
-
-function runScenario(model, scenarioKey) {
-  const holdYears = Math.max(1, Math.floor(normalizeNumber(model?.property?.holdPeriodYears)) || 1);
-  const purchasePrice = normalizeNumber(model?.property?.purchasePrice);
-  const gprByYear = buildRentSchedule(model, scenarioKey);
-  const scenario = model?.scenarios?.[scenarioKey] || {};
-  const vacancyPct = normalizeNumber(model?.property?.vacancyRatePct) + normalizeNumber(scenario.vacancyAdjPct);
-  const egiByYear = applyVacancy(gprByYear, vacancyPct);
-  const expenseByYear = buildExpenseSchedule(model, scenarioKey, egiByYear);
-  const noiByYear = calculateNOI(egiByYear, expenseByYear);
-
-  const noiYear1 = noiByYear[0] ?? 0;
-  const ltvLoanBase = purchasePrice * (normalizeNumber(model?.debt?.ltvPct) / 100);
-  const maxLoanByDSCR = findMaxLoanByDSCR(noiYear1, model?.debt, purchasePrice);
-  const ltvLoan = purchasePrice > 0 ? ltvLoanBase : maxLoanByDSCR; // if no price entered, allow DSCR sizing to drive
+  const purchasePrice = normalizeNumber(property.purchasePrice);
+  const ltvPct = normalizeNumber(debt.ltvPct);
+  const ltvLoan = purchasePrice * (ltvPct / 100);
+  const maxLoanByDSCR = sizeLoanByDSCR(noiByYear[0] || 0, debt, purchasePrice);
   const loanAmount = Math.min(ltvLoan || 0, maxLoanByDSCR || 0);
-  const debtServiceSchedule = buildDebtServiceSchedule(loanAmount, model?.debt, holdYears);
-  const cashflowsToEquity = noiByYear.map((noi, idx) => noi - (debtServiceSchedule[idx] ?? 0));
-  const dscrSeries = debtServiceSchedule.map((ds, idx) => (ds ? (noiByYear[idx] ?? 0) / ds : 0));
-  const minDscr = dscrSeries.reduce((min, dscr) => (min === null ? dscr : Math.min(min, dscr)), null);
+
+  const debtServiceSchedule = buildDebtServiceSchedule(loanAmount, debt, holdYears);
+  const cashflowsToEquity = noiByYear.map((noi, idx) => (noi || 0) - (debtServiceSchedule[idx] || 0));
+
   const equityRequired = Math.max(0, purchasePrice - loanAmount);
-  const cashOnCashYear1 = equityRequired > 0 ? (cashflowsToEquity[0] ?? 0) / equityRequired : 0;
+  const cashOnCashYear1 = equityRequired > 0 ? (cashflowsToEquity[0] || 0) / equityRequired : 0;
+  const cashOnCashAvg =
+    equityRequired > 0 && holdYears > 0
+      ? cashflowsToEquity.reduce((sum, cf) => sum + (cf || 0), 0) / (equityRequired * holdYears)
+      : 0;
+
+  const discountRatePct = normalizeNumber(property.discountRatePct) || 10;
+  const cashflowStream = [equityRequired > 0 ? -equityRequired : 0, ...cashflowsToEquity];
+  const npv = calculateNPV(cashflowStream, discountRatePct);
+  const irr = calculateIRR(cashflowStream);
+
+  const dscrSeries = debtServiceSchedule.map((ds, idx) => (ds > 0 ? (noiByYear[idx] || 0) / ds : 0));
+  const minDscr = dscrSeries.reduce(
+    (min, dscr) => (dscr > 0 && (min === null || dscr < min) ? dscr : min),
+    null
+  ) || 0;
 
   const cashflows = noiByYear.map((noi, idx) => ({
     year: idx + 1,
-    gpr: gprByYear[idx] ?? 0,
-    egi: egiByYear[idx] ?? 0,
-    expenses: expenseByYear[idx] ?? 0,
-    noi,
-    debtService: debtServiceSchedule[idx] ?? 0,
-    cashflowToEquity: cashflowsToEquity[idx] ?? 0,
-    dscr: dscrSeries[idx] ?? 0,
+    gpr: gprByYear[idx] || 0,
+    egi: egiByYear[idx] || 0,
+    opEx: opExTotalByYear[idx] || 0,
+    expenses: opExTotalByYear[idx] || 0,
+    noi: noi || 0,
+    debtService: debtServiceSchedule[idx] || 0,
+    cashflowToEquity: cashflowsToEquity[idx] || 0,
+    dscr: dscrSeries[idx] || 0,
   }));
 
+  const ltvRatio = ltvPct / 100;
+  const summary = {
+    noiYear1: noiByYear[0] || 0,
+    noiStabilized: noiByYear[2] || noiByYear[0] || 0,
+    dscrYear1: dscrSeries[0] || 0,
+    minDscr,
+    maxLoanByDSCR,
+    maxPriceByDSCR: ltvRatio > 0 ? maxLoanByDSCR / ltvRatio : 0,
+    loanAmount,
+    equityRequired,
+    cashOnCashYear1,
+    cashOnCashAvg,
+    npv,
+    irr,
+    debtServiceYear1: debtServiceSchedule[0] || 0,
+    vacancyApplied: effectiveVacancyPct / 100,
+    impliedCapRate: purchasePrice > 0 ? (noiByYear[0] || 0) / purchasePrice : 0,
+    dscrMin,
+    purchasePrice,
+    holdYears,
+  };
+
   return {
-    summary: {
-      gprYear1: gprByYear[0] ?? 0,
-      egiYear1: egiByYear[0] ?? 0,
-      expensesYear1: expenseByYear[0] ?? 0,
-      noiYear1,
-      dscrYear1: dscrSeries[0] ?? 0,
-      minDscr: minDscr ?? 0,
-      loanAmount,
-      maxLoanByDSCR,
-      maxPriceByDSCR: calculateMaxPriceByDSCR(maxLoanByDSCR, model?.debt),
-      equityRequired,
-      cashOnCashYear1,
-      debtServiceYear1: debtServiceSchedule[0] ?? 0,
-      vacancyApplied: Math.min(1, Math.max(0, vacancyPct / 100)),
-    },
+    summary,
     cashflows,
+    dscrSeries,
   };
 }
 
-function buildStabilizedRentSeries(model) {
-  const years = 10;
+function runValueAdd(model = {}) {
   const va = model.valueAdd || {};
-  const series = Array.from({ length: years }, () => 0);
+  const property = model.property || {};
+  const expenses = model.expenses || {};
+  const baseScenario = (model.scenarios && model.scenarios.base) || {};
+  const debt = model.debt || {};
 
-  (va.newRents || []).forEach((line) => {
-    const sqft = normalizeNumber(line.sqft);
-    const rentPsf = normalizeNumber(line.projectedRentPsf);
-    const escal = normalizeNumber(line.escalationPct) / 100;
-    for (let i = 0; i < years; i++) {
-      const rentThisYear = sqft * rentPsf * Math.pow(1 + escal, i);
-      series[i] += rentThisYear;
-    }
-  });
-
-  const ownerUser = va.ownerUser || {};
-  if (ownerUser.useOwnerUser) {
-    const ownerRent = normalizeNumber(ownerUser.sqft) * normalizeNumber(ownerUser.internalRentPsf);
-    for (let i = 0; i < years; i++) {
-      series[i] += ownerRent;
-    }
-  }
-
-  return series;
-}
-
-function runValueAdd(model, baseScenario) {
-  const va = model?.valueAdd || {};
-  const ownerUser = va.ownerUser || {};
-  const purchasePrice = normalizeNumber(model?.property?.purchasePrice);
+  const purchasePrice = normalizeNumber(property.purchasePrice);
   const rehabBudget = normalizeNumber(va.rehabBudget);
-  const buildOutCost = normalizeNumber(ownerUser.buildOutCost);
-  const totalCapEx = rehabBudget + buildOutCost;
-
-  const rehabMonths = Math.max(1, Math.floor(normalizeNumber(va.rehabMonths) || 1));
-  const monthlyRehabSpend = totalCapEx / rehabMonths;
-
-  const baseLoanAmount = baseScenario?.summary?.loanAmount || 0;
-  const baseDebtServiceYear1 = baseScenario?.summary?.debtServiceYear1 || 0;
-  const refinanceMonth = Math.max(1, Math.floor(normalizeNumber(va.refinanceMonth) || 1));
-  const negativeCarry = (baseDebtServiceYear1 / 12) * refinanceMonth;
-
-  const stabilizedRentSeries = buildStabilizedRentSeries(model);
-  const vacancyPct = normalizeNumber(model?.property?.vacancyRatePct) + normalizeNumber(model?.scenarios?.base?.vacancyAdjPct);
-  const vacancyRate = Math.min(1, Math.max(0, vacancyPct / 100));
-
-  const stabilizedEGISeries = stabilizedRentSeries.map((rent) => rent * (1 - vacancyRate));
-  const stabilizedExpenseSeries = buildExpenseSchedule(model, 'base', stabilizedEGISeries);
-  const stabilizedNOISeries = calculateNOI(stabilizedEGISeries, stabilizedExpenseSeries);
-
-  const stabilizedRent = stabilizedRentSeries[0] ?? 0;
-  const stabilizedEGI = stabilizedEGISeries[0] ?? 0;
-  const stabilizedExpenses = stabilizedExpenseSeries[0] ?? 0;
-  const stabilizedNOI = stabilizedNOISeries[0] ?? 0;
-
   const exitCapRate = normalizeNumber(va.exitCapRate) / 100;
+
+  const stabilizedGPR = (Array.isArray(va.newRents) ? va.newRents : []).reduce(
+    (sum, line) => sum + normalizeNumber(line.sqft) * normalizeNumber(line.projectedRentPsf),
+    0
+  );
+
+  const effectiveVacancyPct = Math.min(
+    30,
+    Math.max(0, normalizeNumber(property.vacancyRatePct) + normalizeNumber(baseScenario.vacancyAdjPct))
+  );
+  const stabilizedEGI = stabilizedGPR * (1 - effectiveVacancyPct / 100);
+
+  const baseOpEx =
+    normalizeNumber(expenses.taxes) +
+    normalizeNumber(expenses.insurance) +
+    normalizeNumber(expenses.repairsMaintenance) +
+    normalizeNumber(expenses.utilities) +
+    normalizeNumber(expenses.otherExpenses);
+  const opExFixedScenario = baseOpEx * (1 + normalizeNumber(baseScenario.expenseGrowthAdjPct) / 100);
+  const mgmtPct = normalizeNumber(expenses.managementPctOfEGI) / 100;
+  const stabilizedOpEx = opExFixedScenario + stabilizedEGI * mgmtPct;
+
+  const stabilizedNOI = stabilizedEGI - stabilizedOpEx;
   const stabilizedValue = exitCapRate > 0 ? stabilizedNOI / exitCapRate : 0;
 
-  const maxLoanByDSCR = findMaxLoanByDSCR(stabilizedNOI, model?.debt, stabilizedValue);
-  const ltvLoan = stabilizedValue * (normalizeNumber(model?.debt?.ltvPct) / 100);
+  const maxLoanByDSCR = sizeLoanByDSCR(stabilizedNOI, debt, stabilizedValue);
+  const ltvLoan = stabilizedValue * (normalizeNumber(debt.ltvPct) / 100);
   const refinanceLoan = Math.min(maxLoanByDSCR || 0, ltvLoan || 0);
-  const refinanceDebtService = annualDebtService(refinanceLoan, model?.debt, 0);
 
-  const refinanceCosts = refinanceLoan * (normalizeNumber(va.refinanceCostsPct) / 100);
-  const totalCostBasis = purchasePrice + totalCapEx + negativeCarry;
-  const cashOut = refinanceLoan - refinanceCosts - totalCostBasis;
+  const totalCostBasis = purchasePrice + rehabBudget;
+  const cashOut = refinanceLoan - totalCostBasis;
 
-  const debtServiceSchedule = buildDebtServiceSchedule(refinanceLoan, model?.debt, 10);
-  const stabilizedCashflows = stabilizedNOISeries.map((noi, idx) => {
-    const debtService = debtServiceSchedule[idx] ?? 0;
+  return {
+    stabilizedGPR,
+    stabilizedEGI,
+    stabilizedOpEx,
+    stabilizedNOI,
+    stabilizedValue,
+    refinanceLoan,
+    cashOut,
+    totalCostBasis,
+  };
+}
+
+function runStabilized(model = {}, valueAddResult) {
+  const baseScenario = (model.scenarios && model.scenarios.base) || {};
+  const debt = model.debt || {};
+  const property = model.property || {};
+  const vaResult = valueAddResult || runValueAdd(model);
+
+  const baseRent = vaResult.stabilizedGPR || 0;
+  const vacancyPct = Math.min(
+    30,
+    Math.max(0, normalizeNumber(property.vacancyRatePct) + normalizeNumber(baseScenario.vacancyAdjPct))
+  );
+  const rentGrowth = 0.03 + normalizeNumber(baseScenario.rentGrowthAdjPct) / 100;
+  const expenseGrowth = 0.02;
+  const baseOpEx = vaResult.stabilizedOpEx || 0;
+
+  const annualDebtService = vaResult.refinanceLoan
+    ? mortgagePayment(
+        vaResult.refinanceLoan,
+        normalizeNumber(debt.interestRatePct),
+        Math.max(1, Math.floor(normalizeNumber(debt.amortYears)) || 1)
+      ) * 12
+    : 0;
+
+  const rows = [];
+  let rent = baseRent;
+  let opEx = baseOpEx;
+  for (let i = 0; i < 10; i++) {
+    if (i > 0) {
+      rent *= 1 + rentGrowth;
+      opEx *= 1 + expenseGrowth;
+    }
+    const egi = rent * (1 - vacancyPct / 100);
+    const noi = egi - opEx;
+    const debtService = annualDebtService;
     const cashflowToEquity = noi - debtService;
-    const dscr = debtService ? noi / debtService : 0;
-    return {
-      year: idx + 1,
-      rent: stabilizedRentSeries[idx] ?? 0,
-      egi: stabilizedEGISeries[idx] ?? 0,
-      expenses: stabilizedExpenseSeries[idx] ?? 0,
+    const dscr = debtService > 0 ? noi / debtService : 0;
+
+    rows.push({
+      year: i + 1,
+      rent,
+      egi,
+      opEx,
       noi,
       debtService,
       cashflowToEquity,
       dscr,
-    };
-  });
+    });
+  }
 
-  return {
-    monthlyRehabSpend,
-    negativeCarry,
-    totalCapEx,
-    stabilizedRent,
-    stabilizedEGI,
-    stabilizedExpenses,
-    stabilizedNOI,
-    stabilizedValue,
-    refinanceLoan,
-    refinanceCosts,
-    refinanceDebtService,
-    cashOut,
-    stabilizedCashflows,
-  };
+  return { rows };
 }
 
-export function runUnderwriting(model) {
+export function runUnderwriting(model = {}) {
   const base = runScenario(model, 'base');
   const downside = runScenario(model, 'downside');
   const upside = runScenario(model, 'upside');
-  const valueAdd = runValueAdd(model, base);
+  const valueAdd = runValueAdd(model);
+  const stabilized = runStabilized(model, valueAdd);
 
   return {
     base,
     downside,
     upside,
     valueAdd,
+    stabilized,
   };
 }
-
-export default runUnderwriting;

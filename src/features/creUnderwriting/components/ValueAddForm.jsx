@@ -11,15 +11,9 @@ const newRentRow = () => ({
 
 export default function ValueAddForm({ valueAdd, onChange }) {
   const va = valueAdd || {};
-  const ownerUser = va.ownerUser || {};
 
   const handleChange = (field) => (e) => {
     onChange({ [field]: e.target.value });
-  };
-
-  const handleOwnerChange = (field) => (e) => {
-    const nextValue = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    onChange({ ownerUser: { ...ownerUser, [field]: nextValue } });
   };
 
   const handleRentChange = (id, field, value) => {
@@ -34,8 +28,6 @@ export default function ValueAddForm({ valueAdd, onChange }) {
   const removeRentRow = (id) => {
     onChange({ newRents: (va.newRents || []).filter((r) => r.id !== id) });
   };
-
-  const disableOwnerFields = !ownerUser.useOwnerUser;
 
   return (
     <div className="glass-card">
@@ -184,80 +176,6 @@ export default function ValueAddForm({ valueAdd, onChange }) {
         </table>
       </div>
 
-      <div className="section-header" style={{ marginTop: 20 }}>
-        <div>
-          <h4 className="section-title" style={{ margin: 0 }}>Owner-User</h4>
-          <p className="section-subtitle">Toggle if you will occupy space.</p>
-        </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={ownerUser.useOwnerUser}
-            onChange={handleOwnerChange('useOwnerUser')}
-          />
-          Use owner-user space
-        </label>
-      </div>
-
-      <div className="cre-grid two-col">
-        <div className="input-group">
-          <label className="input-label">Owner-User Sq Ft</label>
-          <input
-            className="modern-input"
-            type="number"
-            value={ownerUser.sqft}
-            onChange={handleOwnerChange('sqft')}
-            min="0"
-            disabled={disableOwnerFields}
-          />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Market Rent PSF</label>
-          <input
-            className="modern-input"
-            type="number"
-            value={ownerUser.marketRentPsf}
-            onChange={handleOwnerChange('marketRentPsf')}
-            min="0"
-            step="0.01"
-            disabled={disableOwnerFields}
-          />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Internal Rent PSF</label>
-          <input
-            className="modern-input"
-            type="number"
-            value={ownerUser.internalRentPsf}
-            onChange={handleOwnerChange('internalRentPsf')}
-            min="0"
-            step="0.01"
-            disabled={disableOwnerFields}
-          />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Build-Out Cost ($)</label>
-          <input
-            className="modern-input"
-            type="number"
-            value={ownerUser.buildOutCost}
-            onChange={handleOwnerChange('buildOutCost')}
-            min="0"
-            disabled={disableOwnerFields}
-          />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Opening Month</label>
-          <input
-            className="modern-input"
-            type="number"
-            value={ownerUser.openMonth}
-            onChange={handleOwnerChange('openMonth')}
-            min="1"
-            disabled={disableOwnerFields}
-          />
-        </div>
-      </div>
     </div>
   );
 }

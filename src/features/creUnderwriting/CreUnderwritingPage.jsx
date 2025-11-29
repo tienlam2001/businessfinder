@@ -10,7 +10,7 @@ import OutputSummary from './components/OutputSummary';
 import CashflowTable from './components/CashflowTable';
 import ValueAddForm from './components/ValueAddForm';
 import StabilizedCashflowTable from './components/StabilizedCashflowTable';
-import runUnderwriting from './utils/underwritingEngine';
+import { runUnderwriting } from './utils/underwritingEngine';
 
 const initialModel = {
   property: {
@@ -20,6 +20,7 @@ const initialModel = {
     purchasePrice: 0,
     vacancyRatePct: 5,
     holdPeriodYears: 10,
+    discountRatePct: 10,
   },
 
   tenants: [
@@ -56,14 +57,6 @@ const initialModel = {
     rehabBudget: 0,
     rehabMonths: 6,
     newRents: [],
-    ownerUser: {
-      useOwnerUser: false,
-      sqft: 0,
-      marketRentPsf: 0,
-      internalRentPsf: 0,
-      buildOutCost: 0,
-      openMonth: 1,
-    },
     exitCapRate: 7,
     refinanceMonth: 18,
     refinanceCostsPct: 3,
@@ -118,7 +111,6 @@ export default function CreUnderwritingPage() {
         ...prev.valueAdd,
         ...patch,
         newRents: patch.newRents !== undefined ? patch.newRents : prev.valueAdd.newRents,
-        ownerUser: { ...prev.valueAdd.ownerUser, ...(patch.ownerUser || {}) },
       },
     }));
   };
@@ -127,6 +119,7 @@ export default function CreUnderwritingPage() {
   const activeScenarioKey = model.scenarios.activeKey;
   const scenarioResult = results[activeScenarioKey] || { summary: {}, cashflows: [] };
   const valueAddResult = results.valueAdd || {};
+  const stabilizedResult = results.stabilized || { rows: [] };
 
   const handleSavePdf = async () => {
     if (!printRef.current) return;
@@ -197,11 +190,10 @@ export default function CreUnderwritingPage() {
         <OutputSummary
           scenarioResult={scenarioResult}
           valueAddResult={valueAddResult}
-          model={model}
           activeScenarioKey={activeScenarioKey}
         />
         <CashflowTable scenarioResult={scenarioResult} />
-        <StabilizedCashflowTable valueAddResult={valueAddResult} />
+        <StabilizedCashflowTable stabilizedResult={stabilizedResult} />
       </div>
     </div>
   );
