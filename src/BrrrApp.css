@@ -1,0 +1,36 @@
+:root {
+  --brrr-surface: rgba(15, 23, 42, 0.75);
+  --brrr-border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.brrr-shell {
+  background: radial-gradient(circle at 20% 20%, rgba(6, 182, 212, 0.08), transparent 35%),
+    radial-gradient(circle at 80% 0%, rgba(139, 92, 246, 0.08), transparent 30%),
+    var(--bg-main, #0f172a);
+  border: var(--brrr-border);
+  border-radius: 20px;
+  padding-bottom: 1rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+}
+
+.brrr-shell header {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(139, 92, 246, 0.08));
+  border-bottom: var(--brrr-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.brrr-card {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.brrr-summary {
+  border: var(--brrr-border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.brrr-chip {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+}

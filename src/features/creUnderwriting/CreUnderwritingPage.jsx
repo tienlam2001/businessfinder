@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { useReactToPrint } from 'react-to-print';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import PropertyForm from './components/PropertyForm';
 import RentRollGrid from './components/RentRollGrid';
 import ExpensesForm from './components/ExpensesForm';
@@ -78,12 +79,8 @@ const initialModel = {
 
 export default function CreUnderwritingPage() {
   const [model, setModel] = useState(initialModel);
+  const [savingPdf, setSavingPdf] = useState(false);
   const printRef = useRef(null);
-
-  const handlePrint = useReactToPrint({
-    content: () => printRef.current,
-    documentTitle: model.property.name ? `CRE Underwriting - ${model.property.name}` : 'CRE Underwriting',
-  });
 
   const updateProperty = (patch) => {
     setModel((prev) => ({ ...prev, property: { ...prev.property, ...patch } }));
@@ -131,6 +128,41 @@ export default function CreUnderwritingPage() {
   const scenarioResult = results[activeScenarioKey] || { summary: {}, cashflows: [] };
   const valueAddResult = results.valueAdd || {};
 
+  const handleSavePdf = async () => {
+    if (!printRef.current) return;
+    setSavingPdf(true);
+    try {
+      const canvas = await html2canvas(printRef.current, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'pt', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const filename = model.property.name
+        ? `CRE-Underwriting-${model.property.name}.pdf`
+        : 'CRE-Underwriting.pdf';
+      pdf.save(filename);
+    } catch (err) {
+      console.error('PDF export failed', err);
+    } finally {
+      setSavingPdf(false);
+    }
+  };
+
   return (
     <div className="cre-underwriting-page">
       <div className="cre-toolbar">
@@ -140,8 +172,8 @@ export default function CreUnderwritingPage() {
             Save to PDF or tweak assumptions on the fly.
           </p>
         </div>
-        <button className="btn-modern" type="button" onClick={handlePrint}>
-          Save as PDF
+        <button className="btn-modern" type="button" onClick={handleSavePdf} disabled={savingPdf}>
+          {savingPdf ? 'Saving...' : 'Save as PDF'}
         </button>
       </div>
 
