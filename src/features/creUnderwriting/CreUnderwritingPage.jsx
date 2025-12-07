@@ -51,6 +51,8 @@ const initialModel = {
     ioYears: 0,
     ltvPct: 70,
     dscrMin: 1.25,
+    loanSizingMethod: 'lesser',
+    whatIfExtraDownPct: 5,
   },
 
   valueAdd: {

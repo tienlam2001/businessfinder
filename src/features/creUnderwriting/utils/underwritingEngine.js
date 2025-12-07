@@ -112,6 +112,7 @@ function runScenario(model = {}, scenarioKey = 'base') {
   const expenses = model.expenses || {};
   const debt = model.debt || {};
   const scenario = (model.scenarios && model.scenarios[scenarioKey]) || {};
+  const loanSizingMethod = (debt.loanSizingMethod || 'lesser').toLowerCase();
 
   const holdYears = Math.max(1, Math.floor(normalizeNumber(property.holdPeriodYears)) || 1);
   const dscrMin = normalizeNumber(debt.dscrMin);
@@ -156,7 +157,9 @@ function runScenario(model = {}, scenarioKey = 'base') {
   const ltvPct = normalizeNumber(debt.ltvPct);
   const ltvLoan = purchasePrice * (ltvPct / 100);
   const maxLoanByDSCR = sizeLoanByDSCR(noiByYear[0] || 0, debt, purchasePrice);
-  const loanAmount = Math.min(ltvLoan || 0, maxLoanByDSCR || 0);
+  let loanAmount = Math.min(ltvLoan || 0, maxLoanByDSCR || 0);
+  if (loanSizingMethod === 'dscr') loanAmount = maxLoanByDSCR || 0;
+  if (loanSizingMethod === 'ltv') loanAmount = ltvLoan || 0;
 
   const debtServiceSchedule = buildDebtServiceSchedule(loanAmount, debt, holdYears);
   const cashflowsToEquity = noiByYear.map((noi, idx) => (noi || 0) - (debtServiceSchedule[idx] || 0));
@@ -179,6 +182,17 @@ function runScenario(model = {}, scenarioKey = 'base') {
     null
   ) || 0;
 
+  // What-if: test an extra down payment to see DSCR lift
+  const whatIfExtraDownPct = Math.max(0, normalizeNumber(debt.whatIfExtraDownPct));
+  const extraDownAmount = purchasePrice * (whatIfExtraDownPct / 100);
+  const whatIfLoan = Math.max(0, loanAmount - extraDownAmount);
+  const whatIfDebtServiceSchedule = buildDebtServiceSchedule(whatIfLoan, debt, holdYears);
+  const whatIfDscrSeries = whatIfDebtServiceSchedule.map((ds, idx) =>
+    ds > 0 ? (noiByYear[idx] || 0) / ds : 0
+  );
+  const whatIfEquityRequired = Math.max(0, purchasePrice - whatIfLoan);
+  const additionalEquityForWhatIf = Math.max(0, whatIfEquityRequired - equityRequired);
+
   const cashflows = noiByYear.map((noi, idx) => ({
     year: idx + 1,
     gpr: gprByYear[idx] || 0,
@@ -192,6 +206,11 @@ function runScenario(model = {}, scenarioKey = 'base') {
   }));
 
   const ltvRatio = ltvPct / 100;
+  const ltvAtUnderwrite = purchasePrice > 0 ? loanAmount / purchasePrice : 0;
+  const loanForTargetDscr = maxLoanByDSCR || 0;
+  const equityToMeetDscr = Math.max(0, purchasePrice - loanForTargetDscr);
+  const additionalEquityToMeetDscr = Math.max(0, equityToMeetDscr - equityRequired);
+  const ltvAtTargetDscr = purchasePrice > 0 ? loanForTargetDscr / purchasePrice : 0;
   const summary = {
     noiYear1: noiByYear[0] || 0,
     noiStabilized: noiByYear[2] || noiByYear[0] || 0,
@@ -199,6 +218,7 @@ function runScenario(model = {}, scenarioKey = 'base') {
     minDscr,
     maxLoanByDSCR,
     maxPriceByDSCR: ltvRatio > 0 ? maxLoanByDSCR / ltvRatio : 0,
+    maxLoanByLTV: ltvLoan,
     loanAmount,
     equityRequired,
     cashOnCashYear1,
@@ -211,6 +231,18 @@ function runScenario(model = {}, scenarioKey = 'base') {
     dscrMin,
     purchasePrice,
     holdYears,
+    loanSizingMethod,
+    ltvAtUnderwrite,
+    ltvAtTargetDscr,
+    loanForTargetDscr,
+    equityToMeetDscr,
+    additionalEquityToMeetDscr,
+    whatIfExtraDownPct,
+    whatIfLoan,
+    whatIfDebtServiceYear1: whatIfDebtServiceSchedule[0] || 0,
+    whatIfDscrYear1: whatIfDscrSeries[0] || 0,
+    whatIfEquityRequired,
+    additionalEquityForWhatIf,
   };
 
   return {
@@ -226,6 +258,7 @@ function runValueAdd(model = {}) {
   const expenses = model.expenses || {};
   const baseScenario = (model.scenarios && model.scenarios.base) || {};
   const debt = model.debt || {};
+  const loanSizingMethod = (debt.loanSizingMethod || 'lesser').toLowerCase();
 
   const purchasePrice = normalizeNumber(property.purchasePrice);
   const rehabBudget = normalizeNumber(va.rehabBudget);
@@ -257,7 +290,9 @@ function runValueAdd(model = {}) {
 
   const maxLoanByDSCR = sizeLoanByDSCR(stabilizedNOI, debt, stabilizedValue);
   const ltvLoan = stabilizedValue * (normalizeNumber(debt.ltvPct) / 100);
-  const refinanceLoan = Math.min(maxLoanByDSCR || 0, ltvLoan || 0);
+  let refinanceLoan = Math.min(maxLoanByDSCR || 0, ltvLoan || 0);
+  if (loanSizingMethod === 'dscr') refinanceLoan = maxLoanByDSCR || 0;
+  if (loanSizingMethod === 'ltv') refinanceLoan = ltvLoan || 0;
 
   const totalCostBasis = purchasePrice + rehabBudget;
   const cashOut = refinanceLoan - totalCostBasis;

@@ -1,4 +1,5 @@
 import React from 'react';
+import InputField from './InputField';
 
 export default function DebtForm({ debt, onChange }) {
   const handleChange = (field) => (e) => {
@@ -14,61 +15,66 @@ export default function DebtForm({ debt, onChange }) {
         </div>
       </div>
       <div className="cre-grid">
+        <InputField
+          label="Interest Rate (%)"
+          type="number"
+          value={debt.interestRatePct}
+          onChange={handleChange('interestRatePct')}
+          min="0"
+          step="0.01"
+        />
+        <InputField
+          label="Amortization (Years)"
+          type="number"
+          value={debt.amortYears}
+          onChange={handleChange('amortYears')}
+          min="1"
+          step="1"
+        />
+        <InputField
+          label="Interest-Only Period (Years)"
+          type="number"
+          value={debt.ioYears}
+          onChange={handleChange('ioYears')}
+          min="0"
+          step="1"
+        />
         <div className="input-group">
-          <label className="input-label">Interest Rate (%)</label>
-          <input
+          <label className="input-label">Loan Sizing Basis</label>
+          <select
             className="modern-input"
-            type="number"
-            value={debt.interestRatePct}
-            onChange={handleChange('interestRatePct')}
-            min="0"
-            step="0.01"
-          />
+            value={debt.loanSizingMethod || 'lesser'}
+            onChange={handleChange('loanSizingMethod')}
+          >
+            <option value="lesser">Lesser of DSCR & LTV</option>
+            <option value="dscr">DSCR Only</option>
+            <option value="ltv">LTV Only</option>
+          </select>
         </div>
-        <div className="input-group">
-          <label className="input-label">Amortization (Years)</label>
-          <input
-            className="modern-input"
-            type="number"
-            value={debt.amortYears}
-            onChange={handleChange('amortYears')}
-            min="1"
-            step="1"
-          />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Interest-Only Period (Years)</label>
-          <input
-            className="modern-input"
-            type="number"
-            value={debt.ioYears}
-            onChange={handleChange('ioYears')}
-            min="0"
-            step="1"
-          />
-        </div>
-        <div className="input-group">
-          <label className="input-label">LTV (%)</label>
-          <input
-            className="modern-input"
-            type="number"
-            value={debt.ltvPct}
-            onChange={handleChange('ltvPct')}
-            min="0"
-            step="0.1"
-          />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Min DSCR</label>
-          <input
-            className="modern-input"
-            type="number"
-            value={debt.dscrMin}
-            onChange={handleChange('dscrMin')}
-            min="0"
-            step="0.01"
-          />
-        </div>
+        <InputField
+          label="LTV (%)"
+          type="number"
+          value={debt.ltvPct}
+          onChange={handleChange('ltvPct')}
+          min="0"
+          step="0.1"
+        />
+        <InputField
+          label="What-If: Extra Down (%)"
+          type="number"
+          value={debt.whatIfExtraDownPct ?? 0}
+          onChange={handleChange('whatIfExtraDownPct')}
+          min="0"
+          step="0.5"
+        />
+        <InputField
+          label="Min DSCR"
+          type="number"
+          value={debt.dscrMin}
+          onChange={handleChange('dscrMin')}
+          min="0"
+          step="0.01"
+        />
       </div>
     </div>
   );

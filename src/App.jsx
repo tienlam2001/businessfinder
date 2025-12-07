@@ -12,6 +12,7 @@ import AddResidenceForm from './components/AddResidenceForm';
 import ResidenceProfile from './components/ResidenceProfile';
 import BrrrApp from './BrrrApp';
 import CreUnderwritingPage from './features/creUnderwriting/CreUnderwritingPage';
+import MultifamilyTab from './features/multifamily/MultifamilyTab';
 import './App.css';
 
 function App() {
@@ -147,6 +148,12 @@ function App() {
           <button onClick={() => setViewMode('cre')} className={viewMode === 'cre' ? 'active' : ''}>
             <Building2 size={16} /> CRE Underwriting
           </button>
+          <button
+            onClick={() => setViewMode('multifamily')}
+            className={viewMode === 'multifamily' ? 'active' : ''}
+          >
+            <Building2 size={16} /> Multifamily
+          </button>
           <a href="/calculators.html" target="_blank" className="view-switcher-link">
             <Calculator size={16} /> Calculators
           </a>
@@ -161,6 +168,10 @@ function App() {
       ) : viewMode === 'cre' ? (
         <div style={{ marginTop: '1rem' }}>
           <CreUnderwritingPage />
+        </div>
+      ) : viewMode === 'multifamily' ? (
+        <div style={{ marginTop: '1rem' }}>
+          <MultifamilyTab />
         </div>
       ) : (
         <div className="main-container">
