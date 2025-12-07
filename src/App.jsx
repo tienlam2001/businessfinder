@@ -12,7 +12,7 @@ import AddResidenceForm from './components/AddResidenceForm';
 import ResidenceProfile from './components/ResidenceProfile';
 import BrrrApp from './BrrrApp';
 import CreUnderwritingPage from './features/creUnderwriting/CreUnderwritingPage';
-import MultifamilyTab from './features/multifamily/MultifamilyTab';
+import MultifamilyTab from './pages/MultifamilyTab';
 import './App.css';
 
 function App() {

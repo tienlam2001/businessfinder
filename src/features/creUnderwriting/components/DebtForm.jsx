@@ -1,5 +1,6 @@
 import React from 'react';
 import InputField from './InputField';
+import SelectField from './SelectField';
 
 export default function DebtForm({ debt, onChange }) {
   const handleChange = (field) => (e) => {
@@ -39,18 +40,15 @@ export default function DebtForm({ debt, onChange }) {
           min="0"
           step="1"
         />
-        <div className="input-group">
-          <label className="input-label">Loan Sizing Basis</label>
-          <select
-            className="modern-input"
-            value={debt.loanSizingMethod || 'lesser'}
-            onChange={handleChange('loanSizingMethod')}
-          >
-            <option value="lesser">Lesser of DSCR & LTV</option>
-            <option value="dscr">DSCR Only</option>
-            <option value="ltv">LTV Only</option>
-          </select>
-        </div>
+        <SelectField
+          label="Loan Sizing Basis"
+          value={debt.loanSizingMethod || 'lesser'}
+          onChange={handleChange('loanSizingMethod')}
+        >
+          <option value="lesser">Lesser of DSCR & LTV</option>
+          <option value="dscr">DSCR Only</option>
+          <option value="ltv">LTV Only</option>
+        </SelectField>
         <InputField
           label="LTV (%)"
           type="number"
